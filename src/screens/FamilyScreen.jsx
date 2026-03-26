@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useUser } from '../App'
-import { familyMembers, grandchildren, alertLevelConfig } from '../data/familyData'
+import { familyMembers, grandchildren, alertLevelConfig, initialAchievements } from '../data/familyData'
 import { fetchAlertsByPeriod } from '../services/pikudHaoref'
 import { getStatus } from '../data/statusConfig'
 import { LOCALITIES, localityCoords, SPECIAL_BASE } from '../data/israeliLocalities'
@@ -327,15 +327,60 @@ function GrandchildCard({ child, city, shelter, photo, alertData, editingId, onT
   )
 }
 
+function AchievementModal({ onClose, onSave, currentUser, initial }) {
+  const [text, setText] = useState(initial?.text || '')
+  const handleSubmit = () => {
+    if (!text.trim()) return
+    if (initial) {
+      onSave({ ...initial, text })
+    } else {
+      onSave({
+        id: Date.now(), text, author: currentUser?.name || 'אנונימי',
+        likes: [], createdAt: new Date().toLocaleDateString('he-IL'),
+      })
+    }
+    onClose()
+  }
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'flex-end' }}>
+      <div style={{ background: 'white', borderRadius: '20px 20px 0 0', padding: '24px 20px', width: '100%', maxWidth: 480, margin: '0 auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 800 }}>{initial ? '✏️ ערוך הישג' : '🏆 הישג חדש'}</h2>
+          <button onClick={onClose} style={{ fontSize: 22, background: 'none', color: '#94a3b8', border: 'none', cursor: 'pointer' }}>✕</button>
+        </div>
+        <textarea value={text} onChange={e => setText(e.target.value)} placeholder="נווה נגמלה מחיתולים! 🎉" rows={3}
+          style={{ width: '100%', padding: '12px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: 15, resize: 'none', direction: 'rtl' }} />
+        <button onClick={handleSubmit} style={{
+          width: '100%', padding: '14px', borderRadius: 12, marginTop: 16,
+          background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', fontSize: 16, fontWeight: 700, border: 'none', cursor: 'pointer',
+        }}>{initial ? 'שמור שינויים ✅' : 'פרסם 🏆'}</button>
+      </div>
+    </div>
+  )
+}
+
 // ────────────────────────────────────────────────────────────
 // מסך משפחה
 // ────────────────────────────────────────────────────────────
 export default function FamilyScreen() {
-  const { shelter, photos, statuses, locations, saveLocations } = useUser()
+  const { currentUser, shelter, photos, statuses, locations, saveLocations } = useUser()
   const [tab, setTab]           = useState('adults')
   const [alertData, setAlertData] = useState({ today: {}, yesterday: {}, week: {} })
   const [loading, setLoading]   = useState(true)
   const [editingId, setEditingId] = useState(null)
+  const [achievements, setAchievements] = useState(() => {
+    try {
+      const saved = localStorage.getItem('familyapp_achievements')
+      return saved ? JSON.parse(saved) : initialAchievements
+    } catch { return initialAchievements }
+  })
+  const [showAchievementModal, setShowAchievementModal] = useState(false)
+  const [editAchievement, setEditAchievement] = useState(null)
+
+  const saveAchievements = (updated) => {
+    setAchievements(updated)
+    try { localStorage.setItem('familyapp_achievements', JSON.stringify(updated)) } catch {}
+  }
 
   const handleToggleEdit = (id) => setEditingId(prev => prev === id ? null : id)
 
@@ -343,8 +388,8 @@ export default function FamilyScreen() {
     saveLocations({ ...locations, [memberId]: locData })
   }
 
-  const adults   = familyMembers.filter(m => !m.military)
-  const military = familyMembers.filter(m => m.military)
+  const defenders = familyMembers.filter(m => locations[m.id]?.city === 'בסיס כלשהו')
+  const nonDefenders = familyMembers.filter(m => locations[m.id]?.city !== 'בסיס כלשהו')
   const shelterCount = Object.values(shelter).filter(s => s.active).length
 
   // שליפת נתוני אזעקות מפיקוד העורף
@@ -396,6 +441,7 @@ export default function FamilyScreen() {
         {[
           { key: 'adults',       label: '👨‍👩‍👧 מבוגרים' },
           { key: 'grandchildren',label: '🧒 נכדים' },
+          { key: 'achievements', label: '🏆 הישגים' },
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             padding: '12px 16px', background: 'none',
@@ -412,7 +458,7 @@ export default function FamilyScreen() {
       <div style={{ flex: 1, overflow: 'auto', padding: '14px 14px 8px' }}>
         {tab === 'adults' ? (
           <>
-            {military.length > 0 && (
+            {defenders.length > 0 && (
               <>
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 8,
@@ -421,13 +467,13 @@ export default function FamilyScreen() {
                 }}>
                   <span style={{ fontSize: 18 }}>🪖</span>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#15803d' }}>שומרי הגבול</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#15803d' }}>מגני המדינה</div>
                     <div style={{ fontSize: 11, color: '#16a34a' }}>
-                      {military.map(m => m.name).join(' ו-')} — גאים בכם! 💚
+                      {defenders.map(m => m.name).join(' ו-')} — גאים בכם! 💚
                     </div>
                   </div>
                 </div>
-                {military.map(m => (
+                {defenders.map(m => (
                   <MemberCard
                     key={m.id} member={m}
                     city={locations[m.id]?.city || null}
@@ -442,7 +488,7 @@ export default function FamilyScreen() {
                 <div style={{ height: 6 }} />
               </>
             )}
-            {adults.map(m => (
+            {nonDefenders.map(m => (
               <MemberCard
                 key={m.id} member={m}
                 city={locations[m.id]?.city || null}
@@ -478,9 +524,108 @@ export default function FamilyScreen() {
                 />
               ))}
             </div>
+            {/* עוברים בדרך */}
+            {(() => {
+              const unbornKids = grandchildren.filter(c => c.unborn && c.dueDate)
+              if (unbornKids.length === 0) return null
+              const today = new Date()
+              return (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ padding: '8px 12px', background: '#fce7f3', borderRadius: 10, border: '1px solid #fbcfe8', marginBottom: 10, textAlign: 'center' }}>
+                    <span style={{ fontSize: 14, color: '#9d174d', fontWeight: 600 }}>🤰 בדרך אלינו!</span>
+                  </div>
+                  {unbornKids.map(baby => {
+                    const due = new Date(baby.dueDate)
+                    const PREG = 280
+                    const conception = new Date(due.getTime() - PREG * 86400000)
+                    const elapsed = Math.floor((today - conception) / 86400000)
+                    const progress = Math.min(100, Math.max(0, Math.round((elapsed / PREG) * 100)))
+                    const weeks = Math.floor(elapsed / 7)
+                    const months = Math.round(weeks / 4.33)
+                    const daysLeft = Math.max(0, Math.floor((due - today) / 86400000))
+                    return (
+                      <div key={baby.id} style={{ background: 'white', borderRadius: 14, padding: '14px 16px', marginBottom: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                          <span style={{ fontSize: 28 }}>{baby.emoji}</span>
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{baby.name}</div>
+                            <div style={{ fontSize: 11, color: '#94a3b8' }}>{baby.parents}</div>
+                          </div>
+                          <div style={{ marginRight: 'auto', textAlign: 'center' }}>
+                            <div style={{ fontSize: 22, fontWeight: 800, color: '#ec4899' }}>{progress}%</div>
+                            <div style={{ fontSize: 9, color: '#94a3b8' }}>טעינה</div>
+                          </div>
+                        </div>
+                        <div style={{ background: '#f1f5f9', borderRadius: 10, height: 16, overflow: 'hidden', marginBottom: 6 }}>
+                          <div style={{ height: '100%', borderRadius: 10, background: progress > 80 ? 'linear-gradient(90deg, #ec4899, #f43f5e)' : 'linear-gradient(90deg, #f9a8d4, #ec4899)', width: progress + '%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: 'white', fontWeight: 700 }}>
+                            {progress > 15 ? progress + '%' : ''}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b' }}>
+                          <span>שבוע {weeks} (חודש {months})</span>
+                          <span>עוד {daysLeft} ימים!</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </>
-        )}
+        ) : tab === 'achievements' ? (
+          <>
+            <button onClick={() => { setEditAchievement(null); setShowAchievementModal(true) }}
+              style={{ width: '100%', padding: '12px', borderRadius: 12, marginBottom: 14,
+                background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: 'white', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer' }}>
+              ➕ הוסף הישג חדש
+            </button>
+            {achievements.map(ach => {
+              const liked = ach.likes?.includes(currentUser?.name)
+              return (
+                <div key={ach.id} style={{ background: 'white', borderRadius: 14, padding: '14px 16px', marginBottom: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <p style={{ fontSize: 15, fontWeight: 600, color: '#1e293b', flex: 1 }}>{ach.text}</p>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => { setEditAchievement(ach); setShowAchievementModal(true) }}
+                        style={{ width: 28, height: 28, borderRadius: 8, background: '#f1f5f9', fontSize: 12, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✏️</button>
+                      <button onClick={() => { if (window.confirm('למחוק?')) saveAchievements(achievements.filter(a => a.id !== ach.id)) }}
+                        style={{ width: 28, height: 28, borderRadius: 8, background: '#fef2f2', fontSize: 12, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🗑️</button>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+                    <span style={{ fontSize: 11, color: '#94a3b8' }}>✍️ {ach.author} · {ach.createdAt}</span>
+                    <button onClick={() => {
+                        const updatedLikes = liked ? (ach.likes || []).filter(n => n !== currentUser?.name) : [...(ach.likes || []), currentUser?.name]
+                        saveAchievements(achievements.map(a => a.id === ach.id ? { ...a, likes: updatedLikes } : a))
+                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 12px', borderRadius: 20,
+                        background: liked ? '#fef2f2' : '#f1f5f9', color: liked ? '#dc2626' : '#94a3b8',
+                        fontSize: 13, fontWeight: liked ? 700 : 400, border: liked ? '1px solid #fca5a5' : '1px solid #e2e8f0', cursor: 'pointer' }}>
+                      <span>{liked ? '❤️' : '🤍'}</span><span>{ach.likes?.length || 0}</span>
+                    </button>
+                  </div>
+                  {ach.likes?.length > 0 && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>{ach.likes.join(', ')} אהבו</div>}
+                </div>
+              )
+            })}
+          </>
+        ) : null}
       </div>
+
+      {showAchievementModal && (
+        <AchievementModal
+          onClose={() => { setShowAchievementModal(false); setEditAchievement(null) }}
+          onSave={(item) => {
+            if (editAchievement) {
+              saveAchievements(achievements.map(a => a.id === item.id ? item : a))
+            } else {
+              saveAchievements([item, ...achievements])
+            }
+          }}
+          currentUser={currentUser}
+          initial={editAchievement}
+        />
+      )}
     </div>
   )
 }

@@ -32,7 +32,6 @@ function RequestCard({ item, currentUser, onSignup, onInterest, onUnsignup, onUn
   const alreadySigned = isRequest
     ? item.signedUp?.includes(currentUser?.name)
     : item.interested?.includes(currentUser?.name)
-  const isOwner = item.author === currentUser?.name
 
   const handleActionClick = () => {
     if (alreadySigned) {
@@ -91,28 +90,26 @@ function RequestCard({ item, currentUser, onSignup, onInterest, onUnsignup, onUn
               {item.title}
             </h3>
           </div>
-          {isOwner && (
-            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-              <button
-                onClick={() => onEdit(item)}
-                style={{
-                  width: 30, height: 30, borderRadius: 8,
-                  background: '#f1f5f9', color: '#475569',
-                  fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  border: 'none', cursor: 'pointer',
-                }}
-              >✏️</button>
-              <button
-                onClick={() => onDelete(item.id)}
-                style={{
-                  width: 30, height: 30, borderRadius: 8,
-                  background: '#fef2f2', color: '#dc2626',
-                  fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  border: 'none', cursor: 'pointer',
-                }}
-              >🗑️</button>
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <button
+              onClick={() => onEdit(item)}
+              style={{
+                width: 30, height: 30, borderRadius: 8,
+                background: '#f1f5f9', color: '#475569',
+                fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: 'none', cursor: 'pointer',
+              }}
+            >✏️</button>
+            <button
+              onClick={() => onDelete(item.id)}
+              style={{
+                width: 30, height: 30, borderRadius: 8,
+                background: '#fef2f2', color: '#dc2626',
+                fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: 'none', cursor: 'pointer',
+              }}
+            >🗑️</button>
+          </div>
         </div>
 
         <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5, marginBottom: 10 }}>
@@ -312,55 +309,30 @@ function ItemModal({ onClose, onSave, currentUser, initial }) {
           }}
         />
 
-        {form.type === 'request' ? (
-          <>
-            <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>
-                  תאריך
-                </label>
-                <input
-                  value={form.date}
-                  onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                  placeholder="01/04/2026"
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14 }}
-                />
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>
-                  שעות
-                </label>
-                <input
-                  value={form.hours}
-                  onChange={e => setForm(f => ({ ...f, hours: e.target.value }))}
-                  placeholder="18:00 - 23:00"
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14 }}
-                />
-              </div>
-            </div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>
-              מספר ילדים
-            </label>
-            <input
-              value={form.numKids}
-              onChange={e => setForm(f => ({ ...f, numKids: e.target.value }))}
-              placeholder="למשל: 2"
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14, marginBottom: 12 }}
-            />
-          </>
-        ) : (
-          <>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>
-              מחיר (אופציונלי)
-            </label>
-            <input
-              value={form.price}
-              onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
-              placeholder="80 ₪ לשעה / חינם"
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14 }}
-            />
-          </>
-        )}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>תאריך</label>
+            <input value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} placeholder="01/04/2026"
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14 }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>שעות</label>
+            <input value={form.hours} onChange={e => setForm(f => ({ ...f, hours: e.target.value }))} placeholder="18:00 - 23:00"
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14 }} />
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>מספר ילדים</label>
+            <input value={form.numKids} onChange={e => setForm(f => ({ ...f, numKids: e.target.value }))} placeholder="2"
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14 }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>מחיר</label>
+            <input value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} placeholder="80 ₪ / חינם"
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14 }} />
+          </div>
+        </div>
 
         <button
           onClick={handleSubmit}
