@@ -52,7 +52,18 @@ export default function App() {
 
   const saveLocations = (updated) => {
     setLocations(updated)
-    localStorage.setItem('familyapp_locations', JSON.stringify(updated))
+    try {
+      localStorage.setItem('familyapp_locations', JSON.stringify(updated))
+    } catch (e) {
+      console.warn('שגיאה בשמירת מיקומים ל-localStorage:', e)
+      // ניסיון לפנות מקום – מנקים תמונות ומנסים שוב
+      try {
+        localStorage.removeItem('familyapp_photos')
+        localStorage.setItem('familyapp_locations', JSON.stringify(updated))
+      } catch {
+        console.warn('לא ניתן לשמור מיקומים גם אחרי ניקוי תמונות')
+      }
+    }
   }
 
   const setMemberStatus = (memberId, statusKey) => {
