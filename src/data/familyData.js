@@ -32,6 +32,8 @@ export const grandchildren = [
   { id: 106, name: 'עומר',         emoji: '👧', parents: 'עינת ורז'    },
   { id: 107, name: 'אלה',          emoji: '👧', parents: 'עטרה ויוסף'  },
   { id: 108, name: 'נווה',         emoji: '👧', parents: 'יהב ועמית'   },
+  { id: 201, name: 'העוברון של עינת', emoji: '🤰', parents: 'עינת ורז', unborn: true, dueDate: '2026-09-10' },
+  { id: 202, name: 'העוברון של עטרה', emoji: '🤰', parents: 'עטרה ויוסף', unborn: true, dueDate: '2026-05-07' },
 ]
 
 // ────────────────────────────────────────────────────────────
@@ -40,6 +42,8 @@ export const grandchildren = [
 // ────────────────────────────────────────────────────────────
 
 export const WAR_START_DATE = '28/02/2026'
+export const SWORDS_OF_IRON_DATE = '2023-10-07' // חרבות ברזל
+export const ROAR_OF_LION_DATE = '2026-02-28' // שאגת הארי (same as WAR_START_DATE)
 
 // עוזר לחישוב רמה לפי מספר אזעקות
 function level(n) {
@@ -88,6 +92,16 @@ export const initialRequests = [
     description: 'אם מישהו צריך עזרה עם מעבר דירה, אני זמין בסופי שבוע',
     author: 'רועי', interested: [], createdAt: '2026-03-18',
   },
+]
+
+// ============================================================
+// הישגים
+// ============================================================
+export const initialAchievements = [
+  { id: 1, text: 'נווה נגמלה מחיתולים! 🎉', author: 'יהב', likes: ['עדי', 'יעל'], createdAt: '2026-03-15' },
+  { id: 2, text: 'דרור התחילה ללכת! 👣', author: 'צביה', likes: ['נועם', 'יעל', 'עדי'], createdAt: '2026-03-10' },
+  { id: 3, text: 'שיר ציון עזרה לאמא לטפל בעומר 💕', author: 'עינת', likes: ['יעל', 'רועי'], createdAt: '2026-03-20' },
+  { id: 4, text: 'ברכות לטליה לרגל חזרתו של אורי לארץ! 🇮🇱🎊', author: 'עדי', likes: ['נועם', 'יעל', 'רועי', 'צביה', 'בועז'], createdAt: '2026-03-25' },
 ]
 
 // ============================================================
