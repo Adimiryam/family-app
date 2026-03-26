@@ -238,29 +238,31 @@ export default function MapScreen() {
     localStorage.setItem(LOCATIONS_KEY, JSON.stringify(updated))
   }
 
-  // מיזוג מיקומים שמורים — רק מיקומים שנבחרו ידנית
-  const members = familyMembers.map(m => ({
-    ...m,
-    city: locations[m.id]?.city ?? null,
-    lat:  locations[m.id]?.lat  ?? null,
-    lng:  locations[m.id]?.lng  ?? null,
-  }))
-  const kids = grandchildren.map(c => ({
-    ...c, isGrandchild: true,
-    city: locations[c.id]?.city ?? null,
-    lat:  locations[c.id]?.lat  ?? null,
-    lng:  locations[c.id]?.lng  ?? null,
-  }))
+  // מיזוג מיקומים שמורים — בסיס כלשהו תמיד מקבל קואורדינטות מלון יערות הכרמל
+  function resolveLocation(loc) {
+    const city = loc?.city ?? null
+    const isBase = city === SPECIAL_BASE.name
+    return {
+      city,
+      lat: isBase ? SPECIAL_BASE.lat : (loc?.lat ?? null),
+      lng: isBase ? SPECIAL_BASE.lng : (loc?.lng ?? null),
+    }
+  }
+
+  const members = familyMembers.map(m => ({ ...m, ...resolveLocation(locations[m.id]) }))
+  const kids = grandchildren.map(c => ({ ...c, isGrandchild: true, ...resolveLocation(locations[c.id]) }))
 
   const allPeople = [
-    ...familyMembers.map(m => ({ ...m, city: locations[m.id]?.city ?? null, lat: locations[m.id]?.lat ?? null, lng: locations[m.id]?.lng ?? null })),
-    ...grandchildren.map(c => ({ ...c, isGrandchild: true, city: locations[c.id]?.city ?? null, lat: locations[c.id]?.lat ?? null, lng: locations[c.id]?.lng ?? null })),
+    ...familyMembers.map(m => ({ ...m, ...resolveLocation(locations[m.id]) })),
+    ...grandchildren.map(c => ({ ...c, isGrandchild: true, ...resolveLocation(locations[c.id]) })),
   ]
 
   const shelterList = allMembers.filter(m => shelter[m.id]?.active)
   const securityLevel = calcSecurityLevel(todayData, todayLoaded)
 
-  const totalAlerts  = Object.values(cityAlertData).reduce((s, d) => s + d.alerts, 0)
+  // אזעקות היום — רק בערים שיש שם בני משפחה
+  const familyAlertCities = new Set(allPeople.filter(p => p.city).map(p => p.city))
+  const totalAlerts = [...familyAlertCities].reduce((s, city) => s + (cityAlertData[city]?.alerts || 0), 0)
 
   // זמן ממד משותף — סכום דקות ממד של כל בני המשפחה לפי הטווח הנבחר
   const peopleWithCity = allPeople.filter(p => p.city)
