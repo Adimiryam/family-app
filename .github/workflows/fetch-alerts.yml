@@ -26,32 +26,46 @@ jobs:
           node -e "
           const https = require('https');
           const fs = require('fs');
-          const HEADERS = { 'Referer': 'https://www.oref.org.il/', 'X-Requested-With': 'XMLHttpRequest' };
+          const HEADERS = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Referer': 'https://www.oref.org.il/',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
+          };
           function get(url) {
             return new Promise(r => {
               const req = https.get(url, { headers: HEADERS }, res => {
                 let d = '';
                 res.on('data', c => d += c);
-                res.on('end', () => { try { r(JSON.parse(d)); } catch { r(null); } });
+                res.on('end', () => {
+                  console.log('GET', url.split('?')[0], '→', res.statusCode, '|', d.slice(0,120));
+                  try { r(JSON.parse(d)); } catch { r(null); }
+                });
               });
-              req.on('error', () => r(null));
-              req.setTimeout(8000, () => { req.destroy(); r(null); });
+              req.on('error', e => { console.error('ERR', url, e.message); r(null); });
+              req.setTimeout(12000, () => { req.destroy(); r(null); });
             });
           }
           function dt(d) { return [String(d.getDate()).padStart(2,'0'), String(d.getMonth()+1).padStart(2,'0'), d.getFullYear()].join('.'); }
           const now = new Date(), yd = new Date(now - 864e5), wk = new Date(now - 6*864e5);
+          console.log('Fetching alerts for', dt(now));
           (async () => {
             const cur = await get('https://www.oref.org.il/warningMessages/alert/Alerts.json');
             fs.writeFileSync('data/current.json', JSON.stringify(cur && cur.data && cur.data.length ? cur : null));
             const td = await get('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate='+dt(now)+'&toDate='+dt(now)+'&mode=0');
             fs.writeFileSync('data/today.json', JSON.stringify(Array.isArray(td)?td:[]));
+            console.log('today:', Array.isArray(td) ? td.length+' records' : 'FAILED');
             const y = await get('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate='+dt(yd)+'&toDate='+dt(yd)+'&mode=0');
             fs.writeFileSync('data/yesterday.json', JSON.stringify(Array.isArray(y)?y:[]));
+            console.log('yesterday:', Array.isArray(y) ? y.length+' records' : 'FAILED');
             const w = await get('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate='+dt(wk)+'&toDate='+dt(now)+'&mode=0');
             fs.writeFileSync('data/week.json', JSON.stringify(Array.isArray(w)?w:[]));
-            const sw = await get('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate=07.10.2023&toDate='+dt(now)+'&mode=0');
+            console.log('week:', Array.isArray(w) ? w.length+' records' : 'FAILED');
+            const sw = await get('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate=01.01.2026&toDate='+dt(now)+'&mode=0');
             fs.writeFileSync('data/sincewar.json', JSON.stringify(Array.isArray(sw)?sw:[]));
-          })().then(() => process.exit(0)).catch(() => process.exit(0));
+            console.log('sincewar:', Array.isArray(sw) ? sw.length+' records' : 'FAILED');
+          })().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(0); });
           "
 
       - name: Push data to gh-pages

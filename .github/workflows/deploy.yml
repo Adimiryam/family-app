@@ -23,11 +23,11 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: שליפת נתוני אזעקות
-        run: node scripts/fetch-alerts.mjs || true
-
-      - name: העתקת נתונים ל-public
-        run: ls data/*.json 2>/dev/null && cp data/*.json public/data/ || true
+      - name: שליפת נתוני אזעקות מ-gh-pages
+        run: |
+          git fetch origin gh-pages 2>/dev/null || true
+          git checkout origin/gh-pages -- data/ 2>/dev/null || true
+          ls data/*.json 2>/dev/null && cp data/*.json public/data/ && echo "✅ copied $(ls data/*.json | wc -l) data files" || echo "⚠️ no data files yet"
 
       - run: npm ci
       - run: npm run build

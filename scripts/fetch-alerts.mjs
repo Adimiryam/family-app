@@ -5,9 +5,11 @@
 import { writeFileSync, mkdirSync } from 'fs'
 
 const HEADERS = {
+  'User-Agent':       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
   'Referer':          'https://www.oref.org.il/',
   'X-Requested-With': 'XMLHttpRequest',
-  'Accept':           'application/json',
+  'Accept':           'application/json, text/javascript, */*; q=0.01',
+  'Accept-Language':  'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
 }
 
 function toOrefDate(date) {
