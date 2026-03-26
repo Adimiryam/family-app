@@ -6,20 +6,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
+  group: pages-deploy
   cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -28,25 +23,23 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: שליפת נתוני אזעקות מ-data branch
+      - name: שליפת נתוני אזעקות עדכניים
         run: |
-          git fetch origin alerts-data 2>/dev/null || git fetch origin gh-pages 2>/dev/null || true
-          git checkout origin/alerts-data -- data/ 2>/dev/null || git checkout origin/gh-pages -- data/ 2>/dev/null || true
-          ls data/*.json 2>/dev/null && cp data/*.json public/data/ && echo "✅ data files copied" || echo "⚠️ no data yet"
+          git fetch origin alerts-data 2>/dev/null || true
+          git checkout origin/alerts-data -- data/ 2>/dev/null || true
+          ls data/*.json 2>/dev/null && cp data/*.json public/data/ && echo "✅ data copied" || echo "⚠️ no data yet"
 
       - run: npm ci
       - run: npm run build
 
-      - name: הגדרת GitHub Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: העלאת artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-      - name: פריסה ל-GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: פריסה ל-gh-pages
+        run: |
+          cd dist
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "deploy $(date -u '+%Y-%m-%d %H:%M')"
+          git push --force \
+            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/Adimiryam/family-app.git" \
+            HEAD:gh-pages
