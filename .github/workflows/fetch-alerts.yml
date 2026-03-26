@@ -1,0 +1,31 @@
+name: Fetch Alert Data
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # כל 5 דקות
+  workflow_dispatch:          # אפשרות הרצה ידנית
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: שליפת נתוני אזעקות
+        run: node scripts/fetch-alerts.mjs
+
+      - uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./data
+          destination_dir: data
+          keep_files: true
