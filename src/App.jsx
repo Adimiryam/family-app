@@ -8,6 +8,7 @@ import EventsScreen from './screens/EventsScreen'
 import ProfileScreen from './screens/ProfileScreen'
 import LoginScreen from './screens/LoginScreen'
 import { familyMembers } from './data/familyData'
+import TopBar from './components/TopBar'
 
 export const UserContext = createContext(null)
 export function useUser() { return useContext(UserContext) }
@@ -113,6 +114,7 @@ export default function App() {
             <LoginScreen />
           ) : (
             <>
+              <TopBar />
               <div style={{ flex: 1, overflow: 'hidden', paddingBottom: 64 }}>
                 <Routes>
                   <Route path="/"         element={<Navigate to="/map" />} />
