@@ -1,10 +1,17 @@
 /**
- * שירות פיקוד העורף — קורא מקבצי JSON סטטיים שמתעדכנים דרך GitHub Actions
+ * שירות פיקוד העורף
+ * אסטרטגיה כפולה:
+ * 1. קודם קורא מקבצי JSON סטטיים (GitHub Actions cache)
+ * 2. אם ריקים — שולף ישירות מ-oref.org.il מהדפדפן (עובד מישראל)
  */
 
-import { alertLevelConfig } from '../data/familyData'
-
 const BASE = import.meta.env.BASE_URL  // '/family-app/' בפרודקשן, '/' בדב
+
+const OREF_HEADERS = {
+  'Referer':          'https://www.oref.org.il/',
+  'X-Requested-With': 'XMLHttpRequest',
+  'Accept':           'application/json',
+}
 
 // ────────────────────────────────────────────────────────────
 // עזרים
@@ -41,9 +48,22 @@ function buildCityMap(rawList) {
   return result
 }
 
+// קריאה מקבצים סטטיים (cache מ-GitHub Actions)
 async function fetchStatic(filename) {
   try {
     const res = await fetch(`${BASE}data/${filename}`)
+    if (!res.ok) return null
+    const data = await res.json()
+    return data
+  } catch {
+    return null
+  }
+}
+
+// קריאה ישירה מ-oref (מהדפדפן — עובד מישראל בלי CORS בעיה עבור endpoint זה)
+async function fetchDirectFromOref(url) {
+  try {
+    const res = await fetch(url, { headers: OREF_HEADERS })
     if (!res.ok) return null
     return await res.json()
   } catch {
@@ -57,7 +77,20 @@ async function fetchStatic(filename) {
 
 /** מחזיר אזעקה פעילה עכשיו, או null אם אין */
 export async function fetchCurrentAlert() {
-  return await fetchStatic('current.json')
+  // נסה static קודם
+  const cached = await fetchStatic('current.json')
+  if (cached !== undefined) return cached
+
+  // fallback: ישירות מ-oref
+  try {
+    const res = await fetch('https://www.oref.org.il/warningMessages/alert/Alerts.json', { headers: OREF_HEADERS })
+    const text = (await res.text()).trim()
+    if (!text || text === '""') return null
+    const data = JSON.parse(text)
+    return (!data || !data.data || data.data.length === 0) ? null : data
+  } catch {
+    return null
+  }
 }
 
 /** מחזיר נתוני עיר לפי תקופה: today / yesterday / week / sinceWar */
@@ -72,7 +105,23 @@ export async function fetchAlertsByPeriod(period) {
   const filename = fileMap[period]
   if (!filename) return {}
 
-  const list = await fetchStatic(filename)
-  if (!list) return null
-  return buildCityMap(list)
+  // שלב 1: נסה static cache
+  const cached = await fetchStatic(filename)
+  if (Array.isArray(cached) && cached.length > 0) {
+    return buildCityMap(cached)
+  }
+
+  // שלב 2: אם today ריק — נסה ישירות מ-oref (AlertsHistory.json = 24 שעות)
+  if (period === 'today') {
+    const live = await fetchDirectFromOref(
+      'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json'
+    )
+    if (Array.isArray(live) && live.length > 0) {
+      return buildCityMap(live)
+    }
+  }
+
+  // אם static ריק ואין live — החזר מפה ריקה (לא null כדי לא לגרום לסרבול UI)
+  if (Array.isArray(cached)) return {}
+  return null
 }
