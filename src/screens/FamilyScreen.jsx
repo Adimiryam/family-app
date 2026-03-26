@@ -201,9 +201,9 @@ export default function FamilyScreen() {
         fetchAlertsByPeriod('week'),
       ])
       setAlertData({
-        today:     today     || {},
-        yesterday: yesterday || {},
-        week:      week      || {},
+        today:     today.data     || {},
+        yesterday: yesterday.data || {},
+        week:      week.data      || {},
       })
       setLoading(false)
     }

@@ -223,15 +223,12 @@ export default function MapScreen() {
     let cancelled = false
     async function load() {
       setLoading(true)
-      const data = await fetchAlertsByPeriod(period)
+      const result = await fetchAlertsByPeriod(period)
       if (!cancelled) {
-        if (data && Object.keys(data).length > 0) {
-          setRealData(data)
-          setDataSource('real')
-        } else {
-          setRealData(null)
-          setDataSource('mock')
-        }
+        const { data, source } = result
+        setRealData(data)
+        // 'unavailable' = שגיאה אמיתית, שאר המקרים = נתוני פיקוד העורף (גם אם ריק)
+        setDataSource(source === 'unavailable' ? 'mock' : 'real')
         setLoading(false)
       }
     }
@@ -241,12 +238,11 @@ export default function MapScreen() {
 
   // ── שליפת נתוני היום למדד ביטחון (תמיד 24 שעות אחרונות) ────
   useEffect(() => {
-    fetchAlertsByPeriod('today').then(data => {
+    fetchAlertsByPeriod('today').then(result => {
+      const { data } = result
       console.log('📊 נתוני פיקוד העורף - היום:', data)
-      if (data !== null) {
-        setTodayData(data)
-        setTodayLoaded(true)
-      }
+      setTodayData(data)
+      setTodayLoaded(true)
     })
   }, [])
 
@@ -261,8 +257,8 @@ export default function MapScreen() {
     return () => clearInterval(pollRef.current)
   }, [])
 
-  // נתוני תקופה — מפיקוד העורף בלבד, ריק אם לא נטען
-  const cityAlertData = (realData && Object.keys(realData).length > 0) ? realData : {}
+  // נתוני תקופה — מפיקוד העורף, {} אם אין אזעקות
+  const cityAlertData = realData || {}
 
   const heatCities = LOCALITIES.filter(c => cityAlertData[c.name])
 

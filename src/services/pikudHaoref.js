@@ -1,33 +1,34 @@
 /**
- * שירות פיקוד העורף
- * אסטרטגיה כפולה:
- * 1. קודם קורא מקבצי JSON סטטיים (GitHub Actions cache)
- * 2. אם ריקים — שולף ישירות מ-oref.org.il מהדפדפן (עובד מישראל)
+ * שירות פיקוד העורף — 3 שכבות fallback:
+ * 1. קבצי JSON סטטיים (GitHub Actions cache, מתעדכן כל 5 דקות)
+ * 2. CORS proxy → oref API (עוקף CORS, עובד מהדפדפן)
+ * 3. מחזיר {} ריק אם הכל נכשל (לא null — כדי לא להציג "מדומה")
  */
 
-const BASE = import.meta.env.BASE_URL  // '/family-app/' בפרודקשן, '/' בדב
+const BASE = import.meta.env.BASE_URL
 
-const OREF_HEADERS = {
-  'Referer':          'https://www.oref.org.il/',
-  'X-Requested-With': 'XMLHttpRequest',
-  'Accept':           'application/json',
-}
+const OREF_HISTORY_URL = 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json'
+const OREF_CURRENT_URL = 'https://www.oref.org.il/warningMessages/alert/Alerts.json'
+
+// CORS proxies לגישה ל-oref מהדפדפן
+const CORS_PROXIES = [
+  (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+]
 
 // ────────────────────────────────────────────────────────────
 // עזרים
 // ────────────────────────────────────────────────────────────
 
 function calcLevel(alerts) {
-  if (alerts <= 0)   return 'low'
-  if (alerts <= 3)   return 'low'
-  if (alerts <= 10)  return 'medium'
-  if (alerts <= 25)  return 'high'
+  if (alerts <= 3)  return 'low'
+  if (alerts <= 10) return 'medium'
+  if (alerts <= 25) return 'high'
   return 'critical'
 }
 
-function buildCityMap(rawList) {
+export function buildCityMap(rawList) {
   const counts = {}
-
   for (const item of rawList) {
     if (!item.data) continue
     const cities = String(item.data).split(/,\s*|;\s*/)
@@ -36,39 +37,33 @@ function buildCityMap(rawList) {
       if (city) counts[city] = (counts[city] || 0) + 1
     }
   }
-
   const result = {}
   for (const [city, alerts] of Object.entries(counts)) {
-    result[city] = {
-      alerts,
-      shelterMinutes: alerts * 3,
-      level: calcLevel(alerts),
-    }
+    result[city] = { alerts, shelterMinutes: alerts * 3, level: calcLevel(alerts) }
   }
   return result
 }
 
-// קריאה מקבצים סטטיים (cache מ-GitHub Actions)
+// קריאה מקבצים סטטיים (cache)
 async function fetchStatic(filename) {
   try {
-    const res = await fetch(`${BASE}data/${filename}`)
-    if (!res.ok) return null
-    const data = await res.json()
-    return data
-  } catch {
-    return null
-  }
-}
-
-// קריאה ישירה מ-oref (מהדפדפן — עובד מישראל בלי CORS בעיה עבור endpoint זה)
-async function fetchDirectFromOref(url) {
-  try {
-    const res = await fetch(url, { headers: OREF_HEADERS })
+    const res = await fetch(`${BASE}data/${filename}`, { cache: 'no-cache' })
     if (!res.ok) return null
     return await res.json()
-  } catch {
-    return null
+  } catch { return null }
+}
+
+// קריאה ישירה עם CORS proxy
+async function fetchViaProxy(url) {
+  for (const makeProxy of CORS_PROXIES) {
+    try {
+      const res = await fetch(makeProxy(url), { signal: AbortSignal.timeout(8000) })
+      if (!res.ok) continue
+      const data = await res.json()
+      if (data) return data
+    } catch { continue }
   }
+  return null
 }
 
 // ────────────────────────────────────────────────────────────
@@ -77,23 +72,26 @@ async function fetchDirectFromOref(url) {
 
 /** מחזיר אזעקה פעילה עכשיו, או null אם אין */
 export async function fetchCurrentAlert() {
-  // נסה static קודם
+  // static cache קודם
   const cached = await fetchStatic('current.json')
-  if (cached !== undefined) return cached
+  if (cached !== undefined && cached !== null) return cached
+  if (cached === null) return null // null = אין אזעקה (שמור בכוונה)
 
-  // fallback: ישירות מ-oref
+  // fallback: CORS proxy
   try {
-    const res = await fetch('https://www.oref.org.il/warningMessages/alert/Alerts.json', { headers: OREF_HEADERS })
-    const text = (await res.text()).trim()
+    const data = await fetchViaProxy(OREF_CURRENT_URL)
+    if (!data) return null
+    const text = typeof data === 'string' ? data.trim() : JSON.stringify(data)
     if (!text || text === '""') return null
-    const data = JSON.parse(text)
-    return (!data || !data.data || data.data.length === 0) ? null : data
-  } catch {
-    return null
-  }
+    const parsed = typeof data === 'string' ? JSON.parse(data) : data
+    return (!parsed?.data?.length) ? null : parsed
+  } catch { return null }
 }
 
-/** מחזיר נתוני עיר לפי תקופה: today / yesterday / week / sinceWar */
+/**
+ * מחזיר נתוני עיר לפי תקופה: today / yesterday / week / sinceWar
+ * תמיד מחזיר אובייקט (לא null) — ריק = אין אזעקות, לא = שגיאה
+ */
 export async function fetchAlertsByPeriod(period) {
   const fileMap = {
     today:     'today.json',
@@ -103,25 +101,22 @@ export async function fetchAlertsByPeriod(period) {
   }
 
   const filename = fileMap[period]
-  if (!filename) return {}
+  if (!filename) return { data: {}, source: 'empty' }
 
-  // שלב 1: נסה static cache
+  // שלב 1: static cache
   const cached = await fetchStatic(filename)
   if (Array.isArray(cached) && cached.length > 0) {
-    return buildCityMap(cached)
+    return { data: buildCityMap(cached), source: 'cache' }
   }
 
-  // שלב 2: אם today ריק — נסה ישירות מ-oref (AlertsHistory.json = 24 שעות)
+  // שלב 2: today → נסה CORS proxy לקבלת נתוני 24 שעות אחרונות חיים
   if (period === 'today') {
-    const live = await fetchDirectFromOref(
-      'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json'
-    )
+    const live = await fetchViaProxy(OREF_HISTORY_URL)
     if (Array.isArray(live) && live.length > 0) {
-      return buildCityMap(live)
+      return { data: buildCityMap(live), source: 'live' }
     }
   }
 
-  // אם static ריק ואין live — החזר מפה ריקה (לא null כדי לא לגרום לסרבול UI)
-  if (Array.isArray(cached)) return {}
-  return null
+  // שלב 3: החזר ריק — נתוני פיקוד העורף נטענו, פשוט אין אזעקות בתקופה זו
+  return { data: {}, source: Array.isArray(cached) ? 'empty' : 'unavailable' }
 }
