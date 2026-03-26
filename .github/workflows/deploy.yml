@@ -23,11 +23,14 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: שליפת נתוני אזעקות עדכניים
-        run: node scripts/fetch-alerts.mjs
+      - name: שליפת נתוני אזעקות (לא קריטי)
+        run: node scripts/fetch-alerts.mjs || true
 
       - name: העתקת נתונים ל-public
-        run: cp data/*.json public/data/
+        run: |
+          if ls data/*.json 2>/dev/null 1>&2; then
+            cp data/*.json public/data/
+          fi
 
       - run: npm ci
       - run: npm run build
