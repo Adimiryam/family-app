@@ -27,12 +27,20 @@ const categoryIcons = {
   'אחר':            '💬',
 }
 
-function RequestCard({ item, currentUser, onSignup, onInterest, onEdit, onDelete }) {
+function RequestCard({ item, currentUser, onSignup, onInterest, onUnsignup, onUninterest, onEdit, onDelete }) {
   const isRequest = item.type === 'request'
   const alreadySigned = isRequest
     ? item.signedUp?.includes(currentUser?.name)
     : item.interested?.includes(currentUser?.name)
   const isOwner = item.author === currentUser?.name
+
+  const handleActionClick = () => {
+    if (alreadySigned) {
+      isRequest ? onUnsignup(item.id) : onUninterest(item.id)
+    } else {
+      isRequest ? onSignup(item.id) : onInterest(item.id)
+    }
+  }
 
   return (
     <div style={{
@@ -91,6 +99,7 @@ function RequestCard({ item, currentUser, onSignup, onInterest, onEdit, onDelete
                   width: 30, height: 30, borderRadius: 8,
                   background: '#f1f5f9', color: '#475569',
                   fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: 'none', cursor: 'pointer',
                 }}
               >✏️</button>
               <button
@@ -99,6 +108,7 @@ function RequestCard({ item, currentUser, onSignup, onInterest, onEdit, onDelete
                   width: 30, height: 30, borderRadius: 8,
                   background: '#fef2f2', color: '#dc2626',
                   fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: 'none', cursor: 'pointer',
                 }}
               >🗑️</button>
             </div>
@@ -136,25 +146,27 @@ function RequestCard({ item, currentUser, onSignup, onInterest, onEdit, onDelete
 
         {/* כפתור פעולה */}
         <button
-          onClick={() => isRequest ? onSignup(item.id) : onInterest(item.id)}
-          disabled={alreadySigned}
+          onClick={handleActionClick}
           style={{
             width: '100%',
             padding: '10px',
             borderRadius: 10,
             background: alreadySigned
-              ? '#f1f5f9'
+              ? '#fef2f2'
               : isRequest
                 ? 'linear-gradient(135deg, #3b82f6, #1e40af)'
                 : 'linear-gradient(135deg, #16a34a, #15803d)',
-            color: alreadySigned ? '#94a3b8' : 'white',
+            color: alreadySigned ? '#dc2626' : 'white',
             fontSize: 14,
             fontWeight: 700,
-            cursor: alreadySigned ? 'default' : 'pointer',
+            cursor: 'pointer',
+            border: alreadySigned ? '1.5px solid #fecaca' : 'none',
           }}
         >
           {alreadySigned
-            ? '✅ כבר נרשמת'
+            ? isRequest
+              ? '❌ בטל הרשמה'
+              : '❌ בטל התעניינות'
             : isRequest
               ? '🙋 אני יכול/ה לעזור!'
               : '⭐ אני מעוניין/ת'
@@ -174,6 +186,7 @@ function ItemModal({ onClose, onSave, currentUser, initial }) {
     description: initial.description || '',
     date:        initial.date        || '',
     hours:       initial.hours       || '',
+    numKids:     initial.numKids     || '',
     price:       initial.price       || '',
   } : {
     type: 'request',
@@ -182,6 +195,7 @@ function ItemModal({ onClose, onSave, currentUser, initial }) {
     description: '',
     date: '',
     hours: '',
+    numKids: '',
     price: '',
   })
 
@@ -227,7 +241,7 @@ function ItemModal({ onClose, onSave, currentUser, initial }) {
           <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1e293b' }}>
             {isEdit ? '✏️ עריכה' : '➕ הוסף בקשה / הצעה'}
           </h2>
-          <button onClick={onClose} style={{ fontSize: 22, background: 'none', color: '#94a3b8' }}>✕</button>
+          <button onClick={onClose} style={{ fontSize: 22, background: 'none', color: '#94a3b8', border: 'none', cursor: 'pointer' }}>✕</button>
         </div>
 
         {/* סוג */}
@@ -244,6 +258,7 @@ function ItemModal({ onClose, onSave, currentUser, initial }) {
                 color: form.type === t ? 'white' : '#64748b',
                 fontSize: 14,
                 fontWeight: 700,
+                border: 'none', cursor: 'pointer',
               }}
             >
               {t === 'request' ? '🙋 בקשה' : '🎁 הצעה'}
@@ -298,30 +313,41 @@ function ItemModal({ onClose, onSave, currentUser, initial }) {
         />
 
         {form.type === 'request' ? (
-          <div style={{ display: 'flex', gap: 10 }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>
-                תאריך
-              </label>
-              <input
-                value={form.date}
-                onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                placeholder="01/04/2026"
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14 }}
-              />
+          <>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>
+                  תאריך
+                </label>
+                <input
+                  value={form.date}
+                  onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                  placeholder="01/04/2026"
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14 }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>
+                  שעות
+                </label>
+                <input
+                  value={form.hours}
+                  onChange={e => setForm(f => ({ ...f, hours: e.target.value }))}
+                  placeholder="18:00 - 23:00"
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14 }}
+                />
+              </div>
             </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>
-                שעות
-              </label>
-              <input
-                value={form.hours}
-                onChange={e => setForm(f => ({ ...f, hours: e.target.value }))}
-                placeholder="18:00 - 23:00"
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14 }}
-              />
-            </div>
-          </div>
+            <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>
+              מספר ילדים
+            </label>
+            <input
+              value={form.numKids}
+              onChange={e => setForm(f => ({ ...f, numKids: e.target.value }))}
+              placeholder="למשל: 2"
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14, marginBottom: 12 }}
+            />
+          </>
         ) : (
           <>
             <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>
@@ -347,6 +373,7 @@ function ItemModal({ onClose, onSave, currentUser, initial }) {
             fontSize: 16,
             fontWeight: 700,
             marginTop: 20,
+            border: 'none', cursor: 'pointer',
           }}
         >
           {isEdit ? 'שמור שינויים ✅' : 'פרסם 🚀'}
@@ -379,6 +406,22 @@ export default function RequestsScreen() {
     setRequests(requests.map(r =>
       r.id === id && !r.interested?.includes(currentUser?.name)
         ? { ...r, interested: [...(r.interested || []), currentUser?.name] }
+        : r
+    ))
+  }
+
+  const unsignup = (id) => {
+    setRequests(requests.map(r =>
+      r.id === id && r.signedUp?.includes(currentUser?.name)
+        ? { ...r, signedUp: r.signedUp.filter(name => name !== currentUser?.name) }
+        : r
+    ))
+  }
+
+  const uninterest = (id) => {
+    setRequests(requests.map(r =>
+      r.id === id && r.interested?.includes(currentUser?.name)
+        ? { ...r, interested: r.interested.filter(name => name !== currentUser?.name) }
         : r
     ))
   }
@@ -424,6 +467,7 @@ export default function RequestsScreen() {
             color: 'white',
             fontSize: 14,
             fontWeight: 700,
+            border: 'none', cursor: 'pointer',
           }}
         >
           ➕ הוסף
@@ -453,6 +497,7 @@ export default function RequestsScreen() {
               fontSize: 13,
               fontWeight: tab === t.key ? 700 : 400,
               marginBottom: -1,
+              border: 'none', cursor: 'pointer',
             }}
           >
             {t.label} ({t.key === 'all' ? requests.length : requests.filter(r => r.type === (t.key === 'requests' ? 'request' : 'offer')).length})
@@ -476,6 +521,8 @@ export default function RequestsScreen() {
               currentUser={currentUser}
               onSignup={signup}
               onInterest={interest}
+              onUnsignup={unsignup}
+              onUninterest={uninterest}
               onEdit={handleEdit}
               onDelete={deleteItem}
             />
