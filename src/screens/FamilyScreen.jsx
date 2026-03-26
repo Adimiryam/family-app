@@ -13,9 +13,17 @@ const LOCALITIES_SORTED = [...LOCALITIES].sort((a, b) => a.name.localeCompare(b.
 function InlineLocationPicker({ person, currentCity, onSelect, onClose }) {
   const [search, setSearch] = useState('')
   const inputRef = useRef()
+  const containerRef = useRef()
 
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 80)
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        onClose()
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
   const filtered = search.trim()
@@ -30,7 +38,7 @@ function InlineLocationPicker({ person, currentCity, onSelect, onClose }) {
   }
 
   return (
-    <div style={{ marginTop: 8, borderRadius: 12, background: '#f8fafc', border: '1.5px solid #3b82f6', overflow: 'hidden' }}>
+    <div ref={containerRef} style={{ marginTop: 8, borderRadius: 12, background: '#f8fafc', border: '1.5px solid #3b82f6', overflow: 'hidden' }}>
       {/* שדה חיפוש */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', borderBottom: '1px solid #e2e8f0', background: 'white' }}>
         <span style={{ fontSize: 13 }}>🔍</span>
@@ -116,7 +124,7 @@ function MemberCard({ member, city, shelter, photo, statusKey, alertData, editin
       boxShadow: isEditing ? '0 0 0 2px #3b82f6' : inShelter ? '0 0 0 2px #dc2626' : '0 1px 4px rgba(0,0,0,0.07)',
       marginBottom: 10,
       position: 'relative',
-      overflow: 'hidden',
+      overflow: isEditing ? 'visible' : 'hidden',
     }}>
       {/* פס מקלט */}
       {inShelter && (
@@ -124,6 +132,7 @@ function MemberCard({ member, city, shelter, photo, statusKey, alertData, editin
           position: 'absolute', top: 0, right: 0, left: 0,
           height: 3,
           background: 'linear-gradient(90deg, #dc2626, #ef4444)',
+          borderRadius: '14px 14px 0 0',
         }} />
       )}
 
