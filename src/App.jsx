@@ -14,10 +14,8 @@ export const UserContext = createContext(null)
 export function useUser() { return useContext(UserContext) }
 
 export default function App() {
-  // ── משתמש נוכחי ──────────────────────────────────────────────
-  const [currentUser, setCurrentUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('familyapp_user')) } catch { return null }
-  })
+  // ── משתמש נוכחי — תמיד מתחיל כ-null, חובה לבחור בכל כניסה ────────
+  const [currentUser, setCurrentUser] = useState(null)
 
   // ── סטטוס מקלט: { [memberId]: { active: bool, since: isoString } } ──
   const [shelter, setShelter] = useState(() => {
@@ -37,12 +35,12 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem('familyapp_shelter_history') || '{}') } catch { return {} }
   })
 
-  // ── תמונות: { [memberId]: base64String } ─────────────────────
+  // ── תמונות: { [memberId]: base64String } ─────────────────
   const [photos, setPhotos] = useState(() => {
     try { return JSON.parse(localStorage.getItem('familyapp_photos') || '{}') } catch { return {} }
   })
 
-  // ── סטטוס: { [memberId]: statusKey } ─────────────────────────
+  // ── סטטוס: { [memberId]: statusKey } ─────────────────────
   const [statuses, setStatuses] = useState(() => {
     try { return JSON.parse(localStorage.getItem('familyapp_statuses') || '{}') } catch { return {} }
   })
@@ -64,12 +62,10 @@ export default function App() {
   }
 
   const login = (member) => {
-    localStorage.setItem('familyapp_user', JSON.stringify(member))
     setCurrentUser(member)
   }
 
   const logout = () => {
-    localStorage.removeItem('familyapp_user')
     setCurrentUser(null)
   }
 
