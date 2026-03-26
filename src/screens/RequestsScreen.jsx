@@ -27,7 +27,7 @@ const categoryIcons = {
   'אחר':            '💬',
 }
 
-function RequestCard({ item, currentUser, onSignup, onInterest, onUnsignup, onUninterest, onEdit, onDelete }) {
+function RequestCard({ item, currentUser, onSignup, onInterest, onUnsignup, onUninterest, onEdit, onDelete, onMoveUp, onMoveDown }) {
   const isRequest = item.type === 'request'
   const alreadySigned = isRequest
     ? item.signedUp?.includes(currentUser?.name)
@@ -91,6 +91,8 @@ function RequestCard({ item, currentUser, onSignup, onInterest, onUnsignup, onUn
             </h3>
           </div>
           <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <button onClick={() => onMoveUp(item.id)} style={{ width: 30, height: 30, borderRadius: 8, background: '#f1f5f9', color: '#475569', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' }}>⬆️</button>
+            <button onClick={() => onMoveDown(item.id)} style={{ width: 30, height: 30, borderRadius: 8, background: '#f1f5f9', color: '#475569', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' }}>⬇️</button>
             <button
               onClick={() => onEdit(item)}
               style={{
@@ -176,6 +178,21 @@ function RequestCard({ item, currentUser, onSignup, onInterest, onUnsignup, onUn
 
 function ItemModal({ onClose, onSave, currentUser, initial }) {
   const isEdit = !!initial
+
+  const toInputDate = (ddmmyyyy) => {
+    if (!ddmmyyyy) return ''
+    const parts = ddmmyyyy.split('/')
+    if (parts.length !== 3) return ddmmyyyy
+    return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`
+  }
+
+  const fromInputDate = (yyyy) => {
+    if (!yyyy) return ''
+    const parts = yyyy.split('-')
+    if (parts.length !== 3) return yyyy
+    return `${parts[2]}/${parts[1]}/${parts[0]}`
+  }
+
   const [form, setForm] = useState(initial ? {
     type:        initial.type        || 'request',
     category:    initial.category    || 'בייביסיטר',
@@ -183,6 +200,7 @@ function ItemModal({ onClose, onSave, currentUser, initial }) {
     description: initial.description || '',
     date:        initial.date        || '',
     hours:       initial.hours       || '',
+    fullDay:     initial.fullDay     || false,
     numKids:     initial.numKids     || '',
     price:       initial.price       || '',
   } : {
@@ -192,6 +210,7 @@ function ItemModal({ onClose, onSave, currentUser, initial }) {
     description: '',
     date: '',
     hours: '',
+    fullDay: false,
     numKids: '',
     price: '',
   })
@@ -312,15 +331,26 @@ function ItemModal({ onClose, onSave, currentUser, initial }) {
         <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
           <div style={{ flex: 1 }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>תאריך</label>
-            <input value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} placeholder="01/04/2026"
-              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14 }} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>שעות</label>
-            <input value={form.hours} onChange={e => setForm(f => ({ ...f, hours: e.target.value }))} placeholder="18:00 - 23:00"
+            <input type="date" value={toInputDate(form.date)} onChange={e => setForm(f => ({ ...f, date: fromInputDate(e.target.value) }))}
               style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14 }} />
           </div>
         </div>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#475569', marginBottom: 12, cursor: 'pointer' }}>
+          <input type="checkbox" checked={form.fullDay || false} onChange={e => setForm(f => ({ ...f, fullDay: e.target.checked, hours: e.target.checked ? 'יום שלם' : '' }))} />
+          יום שלם
+        </label>
+
+        {!form.fullDay && (
+          <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>שעות</label>
+              <input value={form.hours} onChange={e => setForm(f => ({ ...f, hours: e.target.value }))} placeholder="18:00 - 23:00"
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e2e8f0', fontSize: 14 }} />
+            </div>
+          </div>
+        )}
+
         <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
           <div style={{ flex: 1 }}>
             <label style={{ fontSize: 13, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 6 }}>מספר ילדים</label>
@@ -415,6 +445,22 @@ export default function RequestsScreen() {
     setEditItem(item)
   }
 
+  const moveUp = (id) => {
+    const idx = requests.findIndex(r => r.id === id)
+    if (idx <= 0) return
+    const updated = [...requests]
+    ;[updated[idx - 1], updated[idx]] = [updated[idx], updated[idx - 1]]
+    setRequests(updated)
+  }
+
+  const moveDown = (id) => {
+    const idx = requests.findIndex(r => r.id === id)
+    if (idx < 0 || idx >= requests.length - 1) return
+    const updated = [...requests]
+    ;[updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]]
+    setRequests(updated)
+  }
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* כותרת */}
@@ -497,6 +543,8 @@ export default function RequestsScreen() {
               onUninterest={uninterest}
               onEdit={handleEdit}
               onDelete={deleteItem}
+              onMoveUp={moveUp}
+              onMoveDown={moveDown}
             />
           ))
         )}

@@ -5,7 +5,7 @@ import { initialEvents } from '../data/familyData'
 const STORAGE_KEY = 'familyapp_events'
 
 const COLORS = ['#1e40af','#7c3aed','#15803d','#dc2626','#d97706','#0369a1','#be185d']
-const EMOJIS = ['🕍','🎉','🎂','🏖️','🍽️','💒','🎓','⚽','🎵','🏕️','🎁','🌟']
+const EVENT_EMOJIS = ['🕍','🎉','🎂','🏖️','🎄','🍷','🕎','📅','🎊','🏠','💒','🎓','👶','🎭','⚽','🎵','🍕','✈️','🏕️','🎪']
 
 // נרמול נתונים ישנים (assignedTo: string → assignedTo: string[])
 function normalizeTask(t) {
@@ -35,15 +35,60 @@ function useEvents() {
   return [events, save]
 }
 
+// Helper: Convert YYYY-MM-DD to DD/MM/YYYY
+function formatDateDisplay(dateStr) {
+  if (!dateStr) return ''
+  if (dateStr.includes('/')) return dateStr // Already formatted
+  const [year, month, day] = dateStr.split('-')
+  return `${day}/${month}/${year}`
+}
+
+// Helper: Convert DD/MM/YYYY to YYYY-MM-DD
+function formatDateInput(dateStr) {
+  if (!dateStr) return ''
+  if (dateStr.includes('-')) return dateStr // Already in correct format
+  const parts = dateStr.split('/')
+  if (parts.length === 3) {
+    const [day, month, year] = parts
+    return `${year}-${month}-${day}`
+  }
+  return dateStr
+}
+
 // ── מודל הוספה / עריכת אירוע ─────────────────────────────────
 function EventFormModal({ initial, onClose, onSave }) {
-  const blank = { title: '', date: '', time: '', location: '', description: '', emoji: '🎉', color: '#7c3aed' }
-  const [form, setForm] = useState(initial ? { ...initial } : blank)
+  const blank = {
+    title: '',
+    date: '',
+    time: '',
+    location: '',
+    description: '',
+    emoji: '🎉',
+    color: '#7c3aed',
+    fullDay: false
+  }
+  const [form, setForm] = useState(() => {
+    if (initial) {
+      return {
+        ...initial,
+        date: formatDateInput(initial.date) // Convert to YYYY-MM-DD for input
+      }
+    }
+    return blank
+  })
+
   const f = (key, val) => setForm(p => ({ ...p, [key]: val }))
 
   const submit = () => {
     if (!form.title.trim() || !form.date.trim()) return
-    onSave(form)
+
+    // Convert date back to DD/MM/YYYY for storage
+    const dateForStorage = formatDateDisplay(form.date)
+
+    onSave({
+      ...form,
+      date: dateForStorage
+    })
     onClose()
   }
 
@@ -63,8 +108,9 @@ function EventFormModal({ initial, onClose, onSave }) {
         </div>
 
         {/* אימוג'י */}
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 8 }}>בחר אימוג'י:</label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-          {EMOJIS.map(e => (
+          {EVENT_EMOJIS.map(e => (
             <button key={e} onClick={() => f('emoji', e)}
               style={{ fontSize: 22, background: form.emoji === e ? '#eff6ff' : 'none',
                 border: form.emoji === e ? '2px solid #3b82f6' : '2px solid transparent', borderRadius: 8, padding: '4px 6px' }}>
@@ -74,7 +120,8 @@ function EventFormModal({ initial, onClose, onSave }) {
         </div>
 
         {/* צבע */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 8 }}>בחר צבע:</label>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           {COLORS.map(c => (
             <button key={c} onClick={() => f('color', c)}
               style={{ width: 28, height: 28, borderRadius: '50%', background: c,
@@ -83,13 +130,39 @@ function EventFormModal({ initial, onClose, onSave }) {
         </div>
 
         {inp('title', 'שם האירוע')}
-        <div style={{ display: 'flex', gap: 10 }}>
-          <div style={{ flex: 1 }}>{inp('date', 'תאריך (05/04/2026)')}</div>
-          <div style={{ flex: 1 }}>{inp('time', 'שעה (12:00)')}</div>
+
+        {/* Date picker with HTML5 input */}
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 8 }}>תאריך:</label>
+        <input
+          type="date"
+          value={form.date}
+          onChange={e => f('date', e.target.value)}
+          style={{ width: '100%', padding: '10px 12px', borderRadius: 10,
+            border: '1.5px solid #e2e8f0', fontSize: 14, marginBottom: 12 }} />
+
+        {/* Full day checkbox */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <input
+            type="checkbox"
+            checked={form.fullDay}
+            onChange={e => f('fullDay', e.target.checked)}
+            id="fullDayCheck"
+            style={{ width: 18, height: 18, cursor: 'pointer' }} />
+          <label htmlFor="fullDayCheck" style={{ fontSize: 14, color: '#475569', cursor: 'pointer' }}>יום שלם (לא צריך שעה)</label>
         </div>
+
+        {/* Time input - hidden if full day */}
+        {!form.fullDay && (
+          <>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 8 }}>שעה:</label>
+            {inp('time', 'שעה (12:00)')}
+          </>
+        )}
+
         {inp('location', 'מיקום')}
         <textarea value={form.description} onChange={e => f('description', e.target.value)}
-          placeholder="תיאור..." rows={3}
+          placeholder="תיאור..."
+          rows={3}
           style={{ width: '100%', padding: '10px 12px', borderRadius: 10,
             border: '1.5px solid #e2e8f0', fontSize: 14, marginBottom: 12, resize: 'none', direction: 'rtl' }} />
 
@@ -121,6 +194,22 @@ function TasksEditModal({ tasks, onClose, onSave }) {
   const updateSlots = (id, slots) => setDraft(d => d.map(t => t.id === id ? { ...t, slots: Math.max(1, Number(slots)) } : t))
   const updateName  = (id, name)  => setDraft(d => d.map(t => t.id === id ? { ...t, name } : t))
 
+  // Move task up
+  const moveUp = (index) => {
+    if (index === 0) return
+    const newDraft = [...draft]
+    [newDraft[index - 1], newDraft[index]] = [newDraft[index], newDraft[index - 1]]
+    setDraft(newDraft)
+  }
+
+  // Move task down
+  const moveDown = (index) => {
+    if (index === draft.length - 1) return
+    const newDraft = [...draft]
+    [newDraft[index], newDraft[index + 1]] = [newDraft[index + 1], newDraft[index]]
+    setDraft(newDraft)
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2100, display: 'flex', alignItems: 'flex-end' }}>
       <div style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, margin: '0 auto', maxHeight: '80vh', overflow: 'auto', padding: '20px' }}>
@@ -129,7 +218,7 @@ function TasksEditModal({ tasks, onClose, onSave }) {
           <button onClick={onClose} style={{ fontSize: 22, background: 'none', color: '#94a3b8' }}>✕</button>
         </div>
 
-        {draft.map(t => (
+        {draft.map((t, index) => (
           <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
             <input value={t.name} onChange={e => updateName(t.id, e.target.value)}
               style={{ flex: 1, padding: '8px 10px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, direction: 'rtl' }} />
@@ -138,6 +227,16 @@ function TasksEditModal({ tasks, onClose, onSave }) {
               <input type="number" min="1" max="20" value={t.slots}
                 onChange={e => updateSlots(t.id, e.target.value)}
                 style={{ width: 44, padding: '6px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, textAlign: 'center' }} />
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button onClick={() => moveUp(index)} disabled={index === 0}
+                style={{ color: index === 0 ? '#cbd5e1' : '#1e40af', fontSize: 16, background: 'none', cursor: index === 0 ? 'not-allowed' : 'pointer' }}>
+                ⬆️
+              </button>
+              <button onClick={() => moveDown(index)} disabled={index === draft.length - 1}
+                style={{ color: index === draft.length - 1 ? '#cbd5e1' : '#1e40af', fontSize: 16, background: 'none', cursor: index === draft.length - 1 ? 'not-allowed' : 'pointer' }}>
+                ⬇️
+              </button>
             </div>
             <button onClick={() => removeTask(t.id)} style={{ color: '#dc2626', fontSize: 18, background: 'none' }}>✕</button>
           </div>
@@ -170,12 +269,16 @@ function TasksEditModal({ tasks, onClose, onSave }) {
 }
 
 // ── פרטי אירוע ───────────────────────────────────────────────
-function EventDetail({ event, currentUser, onBack, onSave, onDelete }) {
+function EventDetail({ event, currentUser, onBack, onSave, onDelete, events, onReorder }) {
   const [showEditEvent, setShowEditEvent] = useState(false)
   const [showEditTasks, setShowEditTasks] = useState(false)
 
   const isAttending    = event.attending?.includes(currentUser?.name)
   const isNotAttending = event.notAttending?.includes(currentUser?.name)
+
+  const eventIndex = events.findIndex(e => e.id === event.id)
+  const canMoveUp = eventIndex > 0
+  const canMoveDown = eventIndex < events.length - 1
 
   const setRsvp = (attend) => {
     onSave({
@@ -215,6 +318,10 @@ function EventDetail({ event, currentUser, onBack, onSave, onDelete }) {
     onSave({ ...event, tasks: updatedTasks })
   }
 
+  const moveEvent = (direction) => {
+    onReorder(eventIndex, direction)
+  }
+
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ background: `linear-gradient(135deg, ${event.color}, ${event.color}cc)`, padding: '16px 16px 20px', color: 'white', flexShrink: 0 }}>
@@ -224,6 +331,14 @@ function EventDetail({ event, currentUser, onBack, onSave, onDelete }) {
             ← חזרה
           </button>
           <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => moveEvent('up')} disabled={!canMoveUp}
+              style={{ background: canMoveUp ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 12px', color: 'white', fontSize: 13, fontWeight: 700, cursor: canMoveUp ? 'pointer' : 'not-allowed', opacity: canMoveUp ? 1 : 0.5 }}>
+              ⬆️
+            </button>
+            <button onClick={() => moveEvent('down')} disabled={!canMoveDown}
+              style={{ background: canMoveDown ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 12px', color: 'white', fontSize: 13, fontWeight: 700, cursor: canMoveDown ? 'pointer' : 'not-allowed', opacity: canMoveDown ? 1 : 0.5 }}>
+              ⬇️
+            </button>
             <button onClick={() => setShowEditEvent(true)}
               style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 8, padding: '6px 12px', color: 'white', fontSize: 13, fontWeight: 700 }}>
               ✏️ ערוך
@@ -238,7 +353,7 @@ function EventDetail({ event, currentUser, onBack, onSave, onDelete }) {
         <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8 }}>{event.title}</h1>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', opacity: 0.9, fontSize: 13 }}>
           <span>📅 {event.date}</span>
-          <span>🕐 {event.time}</span>
+          {!event.fullDay && <span>🕐 {event.time}</span>}
           <span>📍 {event.location}</span>
         </div>
       </div>
@@ -336,6 +451,16 @@ export default function EventsScreen() {
     setEvents(events.filter(e => e.id !== id))
   }
 
+  const reorderEvents = (index, direction) => {
+    const newEvents = [...events]
+    if (direction === 'up' && index > 0) {
+      [newEvents[index - 1], newEvents[index]] = [newEvents[index], newEvents[index - 1]]
+    } else if (direction === 'down' && index < newEvents.length - 1) {
+      [newEvents[index], newEvents[index + 1]] = [newEvents[index + 1], newEvents[index]]
+    }
+    setEvents(newEvents)
+  }
+
   if (selectedEvent) {
     const live = events.find(e => e.id === selectedEvent.id) || selectedEvent
     return (
@@ -345,6 +470,8 @@ export default function EventsScreen() {
         onBack={() => setSelectedEvent(null)}
         onSave={saveEvent}
         onDelete={deleteEvent}
+        events={events}
+        onReorder={reorderEvents}
       />
     )
   }
@@ -369,7 +496,7 @@ export default function EventsScreen() {
             <p>אין אירועים עדיין</p>
           </div>
         )}
-        {events.map(event => {
+        {events.map((event, index) => {
           const isAttending = event.attending?.includes(currentUser?.name)
           const tasksDone   = event.tasks.filter(t => t.assignedTo.length > 0).length
 
@@ -377,13 +504,31 @@ export default function EventsScreen() {
             <div key={event.id} style={{ background: 'white', borderRadius: 16, marginBottom: 16, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
               <div style={{ background: `linear-gradient(90deg, ${event.color}, ${event.color}80)`, padding: '16px 18px', color: 'white' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
+                  <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 32, marginBottom: 4 }}>{event.emoji}</div>
                     <h2 style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>{event.title}</h2>
                     <div style={{ display: 'flex', gap: 12, fontSize: 12, opacity: 0.9 }}>
                       <span>📅 {event.date}</span>
-                      <span>🕐 {event.time}</span>
+                      {!event.fullDay && <span>🕐 {event.time}</span>}
                     </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, flexDirection: 'column' }}>
+                    <button onClick={() => {
+                      if (index > 0) {
+                        reorderEvents(index, 'up')
+                      }
+                    }} disabled={index === 0}
+                      style={{ fontSize: 18, background: index === 0 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.3)', color: 'white', border: 'none', borderRadius: 6, padding: '4px 6px', cursor: index === 0 ? 'not-allowed' : 'pointer' }}>
+                      ⬆️
+                    </button>
+                    <button onClick={() => {
+                      if (index < events.length - 1) {
+                        reorderEvents(index, 'down')
+                      }
+                    }} disabled={index === events.length - 1}
+                      style={{ fontSize: 18, background: index === events.length - 1 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.3)', color: 'white', border: 'none', borderRadius: 6, padding: '4px 6px', cursor: index === events.length - 1 ? 'not-allowed' : 'pointer' }}>
+                      ⬇️
+                    </button>
                   </div>
                 </div>
               </div>
