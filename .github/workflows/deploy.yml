@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: gh-pages-deploy
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:
@@ -23,6 +23,12 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: שליפת נתוני אזעקות עדכניים
+        run: node scripts/fetch-alerts.mjs
+
+      - name: העתקת נתונים ל-public
+        run: cp data/*.json public/data/
+
       - run: npm ci
       - run: npm run build
 
@@ -30,4 +36,5 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
-          keep_files: true
+          keep_files: false
+          force_orphan: true

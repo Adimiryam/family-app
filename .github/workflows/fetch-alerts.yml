@@ -18,18 +18,71 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: main
+          ref: gh-pages
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: שליפת נתוני אזעקות
-        run: node scripts/fetch-alerts.mjs
+        run: |
+          mkdir -p data
+          node -e "
+          const https = require('https');
+          const fs = require('fs');
 
-      - uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./data
-          destination_dir: data
-          keep_files: true
+          const HEADERS = {
+            'Referer': 'https://www.oref.org.il/',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json',
+          };
+
+          function fetchUrl(url) {
+            return new Promise((resolve) => {
+              const req = https.get(url, { headers: HEADERS }, (res) => {
+                let data = '';
+                res.on('data', chunk => data += chunk);
+                res.on('end', () => {
+                  try { resolve(JSON.parse(data)); } catch { resolve(null); }
+                });
+              });
+              req.on('error', () => resolve(null));
+              req.setTimeout(8000, () => { req.destroy(); resolve(null); });
+            });
+          }
+
+          function toDate(d) {
+            return [String(d.getDate()).padStart(2,'0'), String(d.getMonth()+1).padStart(2,'0'), d.getFullYear()].join('.');
+          }
+
+          const today = new Date();
+          const yd = new Date(); yd.setDate(yd.getDate()-1);
+          const week = new Date(); week.setDate(week.getDate()-6);
+
+          (async () => {
+            const current = await fetchUrl('https://www.oref.org.il/warningMessages/alert/Alerts.json').catch(()=>null);
+            fs.writeFileSync('data/current.json', JSON.stringify(current && current.data && current.data.length ? current : null));
+
+            const td = await fetchUrl('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate='+toDate(today)+'&toDate='+toDate(today)+'&mode=0').catch(()=>null);
+            fs.writeFileSync('data/today.json', JSON.stringify(Array.isArray(td)?td:[]));
+
+            const ydd = await fetchUrl('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate='+toDate(yd)+'&toDate='+toDate(yd)+'&mode=0').catch(()=>null);
+            fs.writeFileSync('data/yesterday.json', JSON.stringify(Array.isArray(ydd)?ydd:[]));
+
+            const wk = await fetchUrl('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate='+toDate(week)+'&toDate='+toDate(today)+'&mode=0').catch(()=>null);
+            fs.writeFileSync('data/week.json', JSON.stringify(Array.isArray(wk)?wk:[]));
+
+            const sw = await fetchUrl('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate=07.10.2023&toDate='+toDate(today)+'&mode=0').catch(()=>null);
+            fs.writeFileSync('data/sincewar.json', JSON.stringify(Array.isArray(sw)?sw:[]));
+
+            console.log('done');
+          })();
+          "
+
+      - name: Push data to gh-pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git diff --staged --quiet || git commit -m "🔄 עדכון אזעקות $(date -u '+%H:%M')"
+          git push
