@@ -1,0 +1,74 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:root {
+  --primary: #1e40af;
+  --primary-light: #3b82f6;
+  --primary-dark: #1e3a8a;
+  --accent: #d97706;
+  --accent-light: #fbbf24;
+  --bg: #f0f4f8;
+  --card: #ffffff;
+  --text: #1e293b;
+  --text-light: #64748b;
+  --text-muted: #94a3b8;
+  --border: #e2e8f0;
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --military: #15803d;
+  --shadow: 0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-full: 9999px;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Heebo', 'Arial', sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  direction: rtl;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  position: relative;
+  background: var(--bg);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+input, textarea {
+  font-family: inherit;
+  direction: rtl;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* אנימציה לסימן מקלט */
+@keyframes pulse-shelter {
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(220,38,38,0.5); }
+  50%       { opacity: 0.85; transform: scale(1.15); box-shadow: 0 0 0 6px rgba(220,38,38,0); }
+}
+.shelter-pulse {
+  animation: pulse-shelter 1.4s ease-in-out infinite;
+}
