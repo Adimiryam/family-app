@@ -434,37 +434,59 @@ export default function MapScreen() {
             )
           })}
 
-          {/* מבוגרים */}
-          {showFamily && members.filter(m => m.lat && m.lng).map(member => {
-            const inShelter = shelter[member.id]?.active
-            return (
-              <CircleMarker key={member.id} center={[member.lat, member.lng]}
-                radius={inShelter ? 10 : 7}
-                fillColor={inShelter ? '#dc2626' : member.military ? '#16a34a' : '#3b82f6'}
-                color={inShelter ? '#dc2626' : 'white'}
-                weight={inShelter ? 3 : 2} opacity={1} fillOpacity={inShelter ? 0.9 : 1}>
-                <Popup>
-                  <div style={{ fontFamily: 'Heebo, Arial', direction: 'rtl', textAlign: 'right', fontSize: 13 }}>
-                    <strong>{member.name}</strong> — {member.role}<br />
-                    📍 {member.city}
-                    {inShelter && <div style={{ color: '#dc2626', fontWeight: 700 }}>🚨 במקלט כרגע!</div>}
-                  </div>
-                </Popup>
-              </CircleMarker>
-            )
-          })}
+          {/* קיבוץ כל בני המשפחה (מבוגרים + נכדים) לפי מיקום — נקודה אחת לכל מיקום */}
+          {showFamily && (() => {
+            // קיבוץ לפי מפתח "lat,lng"
+            const grouped = {}
+            const allWithCoords = [
+              ...members.filter(m => m.lat && m.lng),
+              ...kids.filter(c => c.lat && c.lng),
+            ]
+            for (const p of allWithCoords) {
+              const key = `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`
+              if (!grouped[key]) grouped[key] = { lat: p.lat, lng: p.lng, people: [] }
+              grouped[key].people.push(p)
+            }
 
-          {/* נכדים */}
-          {showFamily && kids.filter(c => c.lat && c.lng).map(child => (
-            <CircleMarker key={child.id} center={[child.lat, child.lng]}
-              radius={5} fillColor="#f59e0b" color="white" weight={2} opacity={1} fillOpacity={1}>
-              <Popup>
-                <div style={{ fontFamily: 'Heebo, Arial', direction: 'rtl', textAlign: 'right', fontSize: 13 }}>
-                  <strong>{child.name}</strong> 🧒<br />📍 {child.city}
-                </div>
-              </Popup>
-            </CircleMarker>
-          ))}
+            return Object.values(grouped).map(({ lat, lng, people }) => {
+              const anyInShelter = people.some(p => shelter[p.id]?.active)
+              const count = people.length
+              // צבע: אדום אם מישהו במקלט, ירוק אם כולם צבאיים, כתום אם יש נכדים בלבד, כחול אחרת
+              const hasMilitary = people.some(p => p.military && !p.isGrandchild)
+              const allKids = people.every(p => p.isGrandchild)
+              const fillColor = anyInShelter ? '#dc2626'
+                : allKids ? '#f59e0b'
+                : hasMilitary ? '#16a34a'
+                : '#3b82f6'
+              const radius = anyInShelter ? 12 : count > 1 ? 10 : 7
+
+              return (
+                <CircleMarker key={`${lat},${lng}`} center={[lat, lng]}
+                  radius={radius}
+                  fillColor={fillColor}
+                  color={anyInShelter ? '#dc2626' : 'white'}
+                  weight={anyInShelter ? 3 : 2} opacity={1} fillOpacity={anyInShelter ? 0.9 : 1}>
+                  <Popup>
+                    <div style={{ fontFamily: 'Heebo, Arial', direction: 'rtl', textAlign: 'right', fontSize: 13, minWidth: 140 }}>
+                      <div style={{ fontWeight: 700, marginBottom: 4 }}>📍 {people[0].city}</div>
+                      {people.map(p => (
+                        <div key={p.id} style={{ marginBottom: 2 }}>
+                          <strong>{p.name}</strong>
+                          {p.isGrandchild ? ' 🧒' : ` — ${p.role}`}
+                          {shelter[p.id]?.active && <span style={{ color: '#dc2626', fontWeight: 700 }}> 🚨 במקלט!</span>}
+                        </div>
+                      ))}
+                      {count > 1 && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: '#64748b' }}>
+                          {count} אנשים במיקום זה
+                        </div>
+                      )}
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              )
+            })
+          })()}
         </MapContainer>
 
         {/* כפתורי שכבות */}
