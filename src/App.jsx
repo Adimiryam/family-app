@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { HashRouter as BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useState, createContext, useContext } from 'react'
 import BottomNav from './components/BottomNav'
 import MapScreen from './screens/MapScreen'
