@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip } from 'react-leaflet'
 import { useUser } from '../App'
 import { familyMembers, grandchildren, alertLevelConfig, WAR_START_DATE } from '../data/familyData'
-import { LOCALITIES, localityCoords, SPECIAL_BASE } from '../data/israeliLocalities'
+import { LOCALITIES, localityCoords, SPECIAL_BASE, DEFAULT_LOCATION } from '../data/israeliLocalities'
 import { getStatus } from '../data/statusConfig'
 import { fetchCurrentAlert, fetchAlertsByPeriod } from '../services/pikudHaoref'
 
@@ -74,21 +74,23 @@ function InlineLocationPicker({ person, currentCity, onSelect, onClose }) {
         />
         <button onClick={onClose} style={{ fontSize: 16, color: '#94a3b8', background: 'none', padding: '0 2px', border: 'none', cursor: 'pointer' }}>✕</button>
       </div>
+      {/* כפתור בסיס כלשהו בולט — תמיד מוצג */}
+      {(!search || SPECIAL_BASE.name.includes(search)) && (
+        <button onClick={() => handleSelect(SPECIAL_BASE.name)} style={{
+          width: '100%', textAlign: 'right', padding: '10px 14px',
+          background: currentCity === SPECIAL_BASE.name ? '#15803d' : '#dcfce7',
+          color: currentCity === SPECIAL_BASE.name ? 'white' : '#15803d',
+          fontSize: 14, fontWeight: 700,
+          borderBottom: '2px solid #86efac',
+          display: 'flex', alignItems: 'center', gap: 8,
+          border: 'none', borderBottom: '2px solid #86efac', cursor: 'pointer',
+        }}>
+          {currentCity === SPECIAL_BASE.name && <span>✓</span>}
+          <span>🪖 {SPECIAL_BASE.name}</span>
+          <span style={{ fontSize: 11, opacity: 0.7, marginRight: 'auto' }}>(יופיע ליד יערות הכרמל)</span>
+        </button>
+      )}
       <div style={{ maxHeight: 180, overflowY: 'auto' }}>
-        {(!search || SPECIAL_BASE.name.includes(search)) && (
-          <button onClick={() => handleSelect(SPECIAL_BASE.name)} style={{
-            width: '100%', textAlign: 'right', padding: '9px 12px',
-            background: currentCity === SPECIAL_BASE.name ? '#eff6ff' : 'transparent',
-            color: currentCity === SPECIAL_BASE.name ? '#1e40af' : '#475569',
-            fontSize: 13, fontWeight: currentCity === SPECIAL_BASE.name ? 700 : 400,
-            borderBottom: '1px solid #f1f5f9',
-            display: 'flex', alignItems: 'center', gap: 6,
-            border: 'none', cursor: 'pointer',
-          }}>
-            {currentCity === SPECIAL_BASE.name && <span>✓</span>}
-            <span>🏕️ {SPECIAL_BASE.name}</span>
-          </button>
-        )}
         {filtered.map(loc => (
           <button key={loc.name} onClick={() => handleSelect(loc.name)} style={{
             width: '100%', textAlign: 'right', padding: '9px 12px',
@@ -338,9 +340,9 @@ export default function MapScreen() {
     const city = loc?.city ?? null
     const isBase = city === SPECIAL_BASE.name
     return {
-      city,
-      lat: isBase ? SPECIAL_BASE.lat : (loc?.lat ?? null),
-      lng: isBase ? SPECIAL_BASE.lng : (loc?.lng ?? null),
+      city: city || null,
+      lat: isBase ? SPECIAL_BASE.lat : (loc?.lat ?? DEFAULT_LOCATION.lat),
+      lng: isBase ? SPECIAL_BASE.lng : (loc?.lng ?? DEFAULT_LOCATION.lng),
     }
   }
 
@@ -632,7 +634,8 @@ export default function MapScreen() {
                     : member.city
                       ? <button
                           onClick={() => setEditingId(isEditing ? null : member.id)}
-                          style={{ fontSize: 11, color: isEditing ? '#1e40af' : '#64748b', display: 'flex', alignItems: 'center', gap: 5, background: isEditing ? '#eff6ff' : 'none', padding: isEditing ? '2px 8px' : 0, border: isEditing ? '1px solid #bfdbfe' : 'none', borderRadius: 8, cursor: 'pointer', marginTop: 4, fontWeight: isEditing ? 700 : 400 }}>
+                          style={{ fontSize: 11, color: isEditing ? '#1e40af' : '#64748b', display: 'flex', alignItems: 'center', gap: 5, background: isEditing ? '#eff6ff' : 'none', padding: isEditing ? '2px 8px' : 0, border: isEditing ? '1px solid #bfdbfe' : 'none', borderRadius: 8, cursor: 'pointer', marginTop: 4, fontWeight: isEditing ? 700 : 400 }}
+                        >
                           <span>📍 {member.city}</span>
                           <span style={{ fontSize: 10, opacity: 0.6 }}>{isEditing ? '▲' : '✏️'}</span>
                           {status && !isEditing && (
@@ -691,7 +694,8 @@ export default function MapScreen() {
                   {child.city
                     ? <button
                         onClick={() => setEditingId(isEditing ? null : child.id)}
-                        style={{ fontSize: 11, color: isEditing ? '#1e40af' : '#64748b', background: isEditing ? '#eff6ff' : 'none', padding: isEditing ? '2px 8px' : 0, border: isEditing ? '1px solid #bfdbfe' : 'none', borderRadius: 8, cursor: 'pointer', marginTop: 4, fontWeight: isEditing ? 700 : 400, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        style={{ fontSize: 11, color: isEditing ? '#1e40af' : '#64748b', background: isEditing ? '#eff6ff' : 'none', padding: isEditing ? '2px 8px' : 0, border: isEditing ? '1px solid #bfdbfe' : 'none', borderRadius: 8, cursor: 'pointer', marginTop: 4, fontWeight: isEditing ? 700 : 400, display: 'flex', alignItems: 'center', gap: 4 }}
+                      >
                         <span>📍 {child.city}</span>
                         <span style={{ fontSize: 10, opacity: 0.6 }}>{isEditing ? '▲' : '✏️'}</span>
                       </button>
