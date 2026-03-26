@@ -261,7 +261,7 @@ export default function MapScreen() {
               alertData={alertData}
             />
           ))}
-          {grandchildren.map(c => (
+          {grandchildren.filter(c => !c.unborn).map(c => (
             <PersonMapMarker
               key={c.id} person={c}
               city={locations[c.id]?.city || null}
