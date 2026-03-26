@@ -20,63 +20,38 @@ jobs:
         with:
           ref: gh-pages
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: שליפת נתוני אזעקות
+      - name: שליפת נתוני אזעקות עדכניים
         run: |
           mkdir -p data
           node -e "
           const https = require('https');
           const fs = require('fs');
-
-          const HEADERS = {
-            'Referer': 'https://www.oref.org.il/',
-            'X-Requested-With': 'XMLHttpRequest',
-            'Accept': 'application/json',
-          };
-
-          function fetchUrl(url) {
-            return new Promise((resolve) => {
-              const req = https.get(url, { headers: HEADERS }, (res) => {
-                let data = '';
-                res.on('data', chunk => data += chunk);
-                res.on('end', () => {
-                  try { resolve(JSON.parse(data)); } catch { resolve(null); }
-                });
+          const HEADERS = { 'Referer': 'https://www.oref.org.il/', 'X-Requested-With': 'XMLHttpRequest' };
+          function get(url) {
+            return new Promise(r => {
+              const req = https.get(url, { headers: HEADERS }, res => {
+                let d = '';
+                res.on('data', c => d += c);
+                res.on('end', () => { try { r(JSON.parse(d)); } catch { r(null); } });
               });
-              req.on('error', () => resolve(null));
-              req.setTimeout(8000, () => { req.destroy(); resolve(null); });
+              req.on('error', () => r(null));
+              req.setTimeout(8000, () => { req.destroy(); r(null); });
             });
           }
-
-          function toDate(d) {
-            return [String(d.getDate()).padStart(2,'0'), String(d.getMonth()+1).padStart(2,'0'), d.getFullYear()].join('.');
-          }
-
-          const today = new Date();
-          const yd = new Date(); yd.setDate(yd.getDate()-1);
-          const week = new Date(); week.setDate(week.getDate()-6);
-
+          function dt(d) { return [String(d.getDate()).padStart(2,'0'), String(d.getMonth()+1).padStart(2,'0'), d.getFullYear()].join('.'); }
+          const now = new Date(), yd = new Date(now - 864e5), wk = new Date(now - 6*864e5);
           (async () => {
-            const current = await fetchUrl('https://www.oref.org.il/warningMessages/alert/Alerts.json').catch(()=>null);
-            fs.writeFileSync('data/current.json', JSON.stringify(current && current.data && current.data.length ? current : null));
-
-            const td = await fetchUrl('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate='+toDate(today)+'&toDate='+toDate(today)+'&mode=0').catch(()=>null);
+            const cur = await get('https://www.oref.org.il/warningMessages/alert/Alerts.json');
+            fs.writeFileSync('data/current.json', JSON.stringify(cur && cur.data && cur.data.length ? cur : null));
+            const td = await get('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate='+dt(now)+'&toDate='+dt(now)+'&mode=0');
             fs.writeFileSync('data/today.json', JSON.stringify(Array.isArray(td)?td:[]));
-
-            const ydd = await fetchUrl('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate='+toDate(yd)+'&toDate='+toDate(yd)+'&mode=0').catch(()=>null);
-            fs.writeFileSync('data/yesterday.json', JSON.stringify(Array.isArray(ydd)?ydd:[]));
-
-            const wk = await fetchUrl('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate='+toDate(week)+'&toDate='+toDate(today)+'&mode=0').catch(()=>null);
-            fs.writeFileSync('data/week.json', JSON.stringify(Array.isArray(wk)?wk:[]));
-
-            const sw = await fetchUrl('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate=07.10.2023&toDate='+toDate(today)+'&mode=0').catch(()=>null);
+            const y = await get('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate='+dt(yd)+'&toDate='+dt(yd)+'&mode=0');
+            fs.writeFileSync('data/yesterday.json', JSON.stringify(Array.isArray(y)?y:[]));
+            const w = await get('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate='+dt(wk)+'&toDate='+dt(now)+'&mode=0');
+            fs.writeFileSync('data/week.json', JSON.stringify(Array.isArray(w)?w:[]));
+            const sw = await get('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate=07.10.2023&toDate='+dt(now)+'&mode=0');
             fs.writeFileSync('data/sincewar.json', JSON.stringify(Array.isArray(sw)?sw:[]));
-
-            console.log('done');
-          })();
+          })().then(() => process.exit(0)).catch(() => process.exit(0));
           "
 
       - name: Push data to gh-pages
@@ -84,5 +59,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/
-          git diff --staged --quiet || git commit -m "🔄 עדכון אזעקות $(date -u '+%H:%M')"
-          git push
+          git diff --staged --quiet || git commit -m "🔄 אזעקות $(date -u '+%H:%M')"
+          git push || true
