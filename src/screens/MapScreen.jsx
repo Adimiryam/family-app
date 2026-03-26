@@ -296,20 +296,24 @@ export default function MapScreen() {
   const familyAlertCities = new Set(allPeople.filter(p => p.city).map(p => p.city))
   const totalAlerts = [...familyAlertCities].reduce((s, city) => s + (cityAlertData[city]?.alerts || 0), 0)
 
-  // זמן ממד משותף — סכום דקות ממד של כל בני המשפחה לפי הטווח הנבחר
+  // זמן ממד משותף — תמיד מ-24 שעות אחרונות (todayData) בלי קשר לסלקטור
   const peopleWithCity = allPeople.filter(p => p.city)
-  const sharedShelterMinutes = peopleWithCity
-    .filter(p => cityAlertData[p.city])
-    .reduce((sum, p) => sum + (cityAlertData[p.city]?.shelterMinutes || 0), 0)
-  const shelterTimeLabel = loading
+  const sharedShelterMinutes24h = peopleWithCity
+    .filter(p => todayData[p.city])
+    .reduce((sum, p) => sum + (todayData[p.city]?.shelterMinutes || 0), 0)
+  const shelterTimeLabel = !todayLoaded
     ? 'טוען...'
     : peopleWithCity.length === 0
       ? 'הגדר מיקומים'
-      : sharedShelterMinutes === 0
+      : sharedShelterMinutes24h === 0
         ? 'ללא אזעקות'
-        : sharedShelterMinutes < 60
-          ? `${sharedShelterMinutes} דק'`
-          : `${Math.floor(sharedShelterMinutes / 60)}ש' ${sharedShelterMinutes % 60}ד'`
+        : sharedShelterMinutes24h < 60
+          ? `${sharedShelterMinutes24h} דק'`
+          : `${Math.floor(sharedShelterMinutes24h / 60)}ש' ${sharedShelterMinutes24h % 60}ד'`
+
+  // אזעקות היום — תמיד מ-todayData
+  const totalAlertsToday = [...new Set(allPeople.filter(p => p.city).map(p => p.city))]
+    .reduce((s, city) => s + (todayData[city]?.alerts || 0), 0)
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -500,8 +504,8 @@ export default function MapScreen() {
       <div style={{ flex: 1, overflow: 'auto', padding: '12px 14px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
           {[
-            { label: 'אזעקות היום', value: totalAlerts || '—',   icon: '🚨', color: '#dc2626', bg: '#fee2e2' },
-            { label: 'זמן ממד משותף', value: shelterTimeLabel,    icon: '🏠', color: '#7c3aed', bg: '#f5f3ff' },
+            { label: 'אזעקות היום', value: totalAlertsToday || (todayLoaded ? '0' : '—'), icon: '🚨', color: '#dc2626', bg: '#fee2e2' },
+            { label: 'ממד 24ש׳', value: shelterTimeLabel, icon: '🏠', color: '#7c3aed', bg: '#f5f3ff' },
             { label: 'מדד ביטחון',   value: securityLevel.label, icon: securityLevel.icon, color: securityLevel.color, bg: securityLevel.bg },
           ].map(s => (
             <div key={s.label} style={{ background: s.bg, borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>

@@ -125,15 +125,6 @@ export default function App() {
             <LoginScreen />
           ) : (
             <>
-              <div style={{
-                display: 'flex', alignItems: 'center',
-                padding: '6px 14px',
-                background: 'white',
-                borderBottom: '1px solid #e2e8f0',
-                flexShrink: 0,
-              }}>
-                <span style={{ fontSize: 22, letterSpacing: 2 }}>🍏🍏🍏</span>
-              </div>
               <TopBar />
               <div style={{ flex: 1, overflow: 'hidden', paddingBottom: 64 }}>
                 <Routes>
