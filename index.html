@@ -8,6 +8,18 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script type="text/javascript">
+      // Restore path that was encoded by 404.html redirect
+      (function() {
+        var params = new URLSearchParams(window.location.search);
+        var p = params.get('p');
+        if (p) {
+          var q = params.get('q');
+          var url = window.location.pathname + p + (q ? '?' + q : '') + window.location.hash;
+          window.history.replaceState(null, null, url);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
