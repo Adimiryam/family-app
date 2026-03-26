@@ -13,12 +13,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: alerts-data
+
+      - name: הגדרת ענף alerts-data (יוצר אם לא קיים)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin alerts-data 2>/dev/null || true
+          if git show-ref --verify --quiet refs/remotes/origin/alerts-data; then
+            git checkout alerts-data
+          else
+            echo "ענף alerts-data לא קיים — יוצר אותו"
+            git checkout --orphan alerts-data
+            git rm -rf . --quiet 2>/dev/null || true
+          fi
+          mkdir -p data
 
       - name: שליפת נתוני אזעקות עדכניים
         run: |
-          mkdir -p data
           node -e "
           const https = require('https');
           const fs = require('fs');
@@ -66,8 +77,6 @@ jobs:
 
       - name: Push data to alerts-data branch
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/
           git diff --staged --quiet || git commit -m "🔄 אזעקות $(date -u '+%H:%M')"
-          git push || true
+          git push origin alerts-data || git push --set-upstream origin alerts-data
