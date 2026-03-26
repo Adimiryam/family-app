@@ -37,9 +37,18 @@ export const LOCALITIES = [
   { name: 'אודם', lat: 33.1942, lng: 35.74914 },
   { name: 'אום אל פחם', lat: 32.52644, lng: 35.15556 },
   { name: 'אום אל קוטוף', lat: 32.46886, lng: 35.06025 },
-  { name: 'אום בטין', lat: 31.2694, lng: 34.87887 }
+  { name: 'אום בטין', lat: 31.2694, lng: 34.87887 },
+  { name: 'אופקים', lat: 31.30838, lng: 34.63281 },
+  { name: 'אור הגנוז', lat: 33.00492, lng: 35.44608 },
+  { name: 'אור הנר', lat: 31.55781, lng: 34.59999 },
+  { name: 'אור יהודה', lat: 32.0292, lng: 34.84842 },
+  { name: 'אור עקיבא', lat: 32.50231, lng: 34.9219 },
+  { name: 'אורה', lat: 31.75307, lng: 35.15256 },
+  { name: 'אורות', lat: 31.74219, lng: 34.73428 },
+  { name: 'אורטל', lat: 33.08481, lng: 35.76076 },
+  { name: 'אורים', lat: 31.30445, lng: 34.52336 },
+  { name: 'אורנים', lat: 32.7127, lng: 35.10832 },
+  { name: 'אורנית', lat: 32.12886, lng: 34.99039 },
+  { name: 'אושה', lat: 32.79629, lng: 35.11356 },
+  { name: 'אזור', lat: 32.02304, lng: 34.8088 }
 ]
-
-export const localityCoords = Object.fromEntries(
-  LOCALITIES.map(l => [l.name, { lat: l.lat, lng: l.lng }])
-)
