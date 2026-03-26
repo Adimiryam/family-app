@@ -6,15 +6,20 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
-  group: gh-pages-deploy
+  group: pages
   cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -23,21 +28,23 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: שליפת נתוני אזעקות מ-gh-pages
+      - name: שליפת נתוני אזעקות מ-data branch
         run: |
-          git fetch origin gh-pages 2>/dev/null || true
-          git checkout origin/gh-pages -- data/ 2>/dev/null || true
-          ls data/*.json 2>/dev/null && cp data/*.json public/data/ && echo "✅ copied $(ls data/*.json | wc -l) data files" || echo "⚠️ no data files yet"
+          git fetch origin alerts-data 2>/dev/null || git fetch origin gh-pages 2>/dev/null || true
+          git checkout origin/alerts-data -- data/ 2>/dev/null || git checkout origin/gh-pages -- data/ 2>/dev/null || true
+          ls data/*.json 2>/dev/null && cp data/*.json public/data/ && echo "✅ data files copied" || echo "⚠️ no data yet"
 
       - run: npm ci
       - run: npm run build
 
-      - name: Deploy to gh-pages
-        run: |
-          cd dist
-          git init
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Deploy $(date -u '+%Y-%m-%d %H:%M UTC')"
-          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/Adimiryam/family-app.git" HEAD:gh-pages
+      - name: הגדרת GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: העלאת artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: פריסה ל-GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

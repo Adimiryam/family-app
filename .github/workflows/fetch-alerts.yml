@@ -8,17 +8,13 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: gh-pages-deploy
-  cancel-in-progress: false
-
 jobs:
   fetch:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: gh-pages
+          ref: alerts-data
 
       - name: שליפת נתוני אזעקות עדכניים
         run: |
@@ -68,7 +64,7 @@ jobs:
           })().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(0); });
           "
 
-      - name: Push data to gh-pages
+      - name: Push data to alerts-data branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
