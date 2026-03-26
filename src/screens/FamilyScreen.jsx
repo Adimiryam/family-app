@@ -1,13 +1,24 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useUser } from '../App'
-import { familyMembers, grandchildren, cityAlertData, alertLevelConfig } from '../data/familyData'
+import { familyMembers, grandchildren, alertLevelConfig } from '../data/familyData'
+import { fetchAlertsByPeriod } from '../services/pikudHaoref'
 import { getStatus } from '../data/statusConfig'
 
-function MemberCard({ member, shelter, photo, statusKey }) {
-  const status = getStatus(statusKey)
-  const cityData = cityAlertData[member.city]
-  const level    = cityData ? alertLevelConfig[cityData.level] : null
+// ────────────────────────────────────────────────────────────
+// כרטיס מבוגר
+// ────────────────────────────────────────────────────────────
+function MemberCard({ member, city, shelter, photo, statusKey, alertData }) {
+  const status    = getStatus(statusKey)
   const inShelter = shelter[member.id]?.active
+
+  const todayAlerts     = alertData.today?.[city]?.alerts     ?? null
+  const yesterdayAlerts = alertData.yesterday?.[city]?.alerts ?? null
+  const weekAlerts      = alertData.week?.[city]?.alerts      ?? null
+
+  // רמת סכנה לפי היום
+  const todayLevel = todayAlerts > 0
+    ? alertLevelConfig[alertData.today[city].level]
+    : null
 
   return (
     <div style={{
@@ -55,7 +66,7 @@ function MemberCard({ member, shelter, photo, statusKey }) {
       </div>
 
       {/* פרטים */}
-      <div style={{ flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 15, fontWeight: 700, color: '#1e293b' }}>{member.name}</span>
           <span style={{
@@ -65,6 +76,11 @@ function MemberCard({ member, shelter, photo, statusKey }) {
           }}>
             {member.role}
           </span>
+          {status && (
+            <span style={{ background: status.bg, color: status.color, fontSize: 10, padding: '1px 6px', borderRadius: 10, fontWeight: 700 }}>
+              {status.icon} {status.label}
+            </span>
+          )}
         </div>
 
         {inShelter ? (
@@ -72,27 +88,60 @@ function MemberCard({ member, shelter, photo, statusKey }) {
             🚨 במקלט כרגע
           </div>
         ) : (
-          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-            <span>📍 {member.city}</span>
-            {level && (
-              <span style={{ background: level.bg, color: level.color, fontSize: 10, padding: '1px 6px', borderRadius: 10, fontWeight: 600 }}>
-                {level.icon} {cityData.alerts}
-              </span>
+          <>
+            {/* מיקום */}
+            <div style={{ fontSize: 12, color: '#64748b', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span>📍</span>
+              <span>{city || 'מיקום לא הוגדר'}</span>
+              {todayLevel && (
+                <span style={{
+                  background: todayLevel.bg, color: todayLevel.color,
+                  fontSize: 10, padding: '1px 6px', borderRadius: 10, fontWeight: 700,
+                }}>
+                  {todayLevel.icon} {todayLevel.label}
+                </span>
+              )}
+            </div>
+
+            {/* סטטיסטיקות אזעקות */}
+            {city && (
+              <div style={{ display: 'flex', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
+                <AlertStat label="היום" count={todayAlerts} color="#dc2626" bg="#fee2e2" />
+                <AlertStat label="אתמול" count={yesterdayAlerts} color="#d97706" bg="#fef3c7" />
+                <AlertStat label="שבוע" count={weekAlerts} color="#7c3aed" bg="#ede9fe" />
+              </div>
             )}
-            {status && (
-              <span style={{ background: status.bg, color: status.color, fontSize: 10, padding: '1px 6px', borderRadius: 10, fontWeight: 700 }}>
-                {status.icon} {status.label}
-              </span>
-            )}
-          </div>
+          </>
         )}
       </div>
     </div>
   )
 }
 
-function GrandchildCard({ child, shelter, photo }) {
-  const inShelter = shelter[child.id]?.active
+function AlertStat({ label, count, color, bg }) {
+  if (count === null) return null
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 3,
+      background: count > 0 ? bg : '#f1f5f9',
+      color: count > 0 ? color : '#94a3b8',
+      fontSize: 11, padding: '2px 8px', borderRadius: 20,
+      fontWeight: count > 0 ? 700 : 400,
+    }}>
+      <span>{count > 0 ? '🚨' : '✅'}</span>
+      <span>{label}:</span>
+      <span>{count > 0 ? count : 'ללא'}</span>
+    </div>
+  )
+}
+
+// ────────────────────────────────────────────────────────────
+// כרטיס נכד
+// ────────────────────────────────────────────────────────────
+function GrandchildCard({ child, city, shelter, photo, alertData }) {
+  const inShelter     = shelter[child.id]?.active
+  const todayAlerts   = alertData.today?.[city]?.alerts ?? null
+
   return (
     <div style={{
       background: 'white', borderRadius: 12,
@@ -118,18 +167,48 @@ function GrandchildCard({ child, shelter, photo }) {
       </div>
       <span style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', textAlign: 'center', lineHeight: 1.3 }}>{child.name}</span>
       <span style={{ fontSize: 10, color: '#94a3b8', textAlign: 'center', lineHeight: 1.2 }}>{child.parents}</span>
+      {city && (
+        <span style={{ fontSize: 10, color: '#64748b' }}>📍 {city}</span>
+      )}
+      {todayAlerts !== null && todayAlerts > 0 && (
+        <span style={{ fontSize: 10, color: '#dc2626', fontWeight: 700 }}>🚨 {todayAlerts} היום</span>
+      )}
       {inShelter && <span className="shelter-pulse" style={{ fontSize: 12 }}>🚨</span>}
     </div>
   )
 }
 
+// ────────────────────────────────────────────────────────────
+// מסך משפחה
+// ────────────────────────────────────────────────────────────
 export default function FamilyScreen() {
-  const { shelter, photos, statuses } = useUser()
-  const [tab, setTab] = useState('adults')
+  const { shelter, photos, statuses, locations } = useUser()
+  const [tab, setTab]         = useState('adults')
+  const [alertData, setAlertData] = useState({ today: {}, yesterday: {}, week: {} })
+  const [loading, setLoading] = useState(true)
 
   const adults   = familyMembers.filter(m => !m.military)
   const military = familyMembers.filter(m => m.military)
   const shelterCount = Object.values(shelter).filter(s => s.active).length
+
+  // שליפת נתוני אזעקות מפיקוד העורף
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      const [today, yesterday, week] = await Promise.all([
+        fetchAlertsByPeriod('today'),
+        fetchAlertsByPeriod('yesterday'),
+        fetchAlertsByPeriod('week'),
+      ])
+      setAlertData({
+        today:     today     || {},
+        yesterday: yesterday || {},
+        week:      week      || {},
+      })
+      setLoading(false)
+    }
+    load()
+  }, [])
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -141,7 +220,10 @@ export default function FamilyScreen() {
       }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 2 }}>👨‍👩‍👧‍👦 המשפחה שלנו</h1>
-          <p style={{ fontSize: 12, opacity: 0.85 }}>{familyMembers.length} מבוגרים · {grandchildren.length} נכדים</p>
+          <p style={{ fontSize: 12, opacity: 0.85 }}>
+            {familyMembers.length} מבוגרים · {grandchildren.length} נכדים
+            {loading ? ' · טוען נתוני אזעקות...' : ' · נתוני פיקוד העורף'}
+          </p>
         </div>
         {shelterCount > 0 && (
           <div className="shelter-pulse" style={{
@@ -174,7 +256,6 @@ export default function FamilyScreen() {
       <div style={{ flex: 1, overflow: 'auto', padding: '14px 14px 8px' }}>
         {tab === 'adults' ? (
           <>
-            {/* בצבא */}
             {military.length > 0 && (
               <>
                 <div style={{
@@ -190,11 +271,27 @@ export default function FamilyScreen() {
                     </div>
                   </div>
                 </div>
-                {military.map(m => <MemberCard key={m.id} member={m} shelter={shelter} photo={photos[m.id]} statusKey={statuses[m.id]} />)}
+                {military.map(m => (
+                  <MemberCard
+                    key={m.id} member={m}
+                    city={locations[m.id]?.city || null}
+                    shelter={shelter} photo={photos[m.id]}
+                    statusKey={statuses[m.id]}
+                    alertData={alertData}
+                  />
+                ))}
                 <div style={{ height: 6 }} />
               </>
             )}
-            {adults.map(m => <MemberCard key={m.id} member={m} shelter={shelter} photo={photos[m.id]} statusKey={statuses[m.id]} />)}
+            {adults.map(m => (
+              <MemberCard
+                key={m.id} member={m}
+                city={locations[m.id]?.city || null}
+                shelter={shelter} photo={photos[m.id]}
+                statusKey={statuses[m.id]}
+                alertData={alertData}
+              />
+            ))}
           </>
         ) : (
           <>
@@ -208,7 +305,12 @@ export default function FamilyScreen() {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
               {grandchildren.map(child => (
-                <GrandchildCard key={child.id} child={child} shelter={shelter} photo={photos[child.id]} />
+                <GrandchildCard
+                  key={child.id} child={child}
+                  city={locations[child.id]?.city || null}
+                  shelter={shelter} photo={photos[child.id]}
+                  alertData={alertData}
+                />
               ))}
             </div>
           </>

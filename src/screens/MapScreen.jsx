@@ -167,7 +167,7 @@ function EditLocationsModal({ allPeople, locations, onSave, onClose, cityAlertDa
 // מסך ראשי
 // ────────────────────────────────────────────────────────────
 export default function MapScreen() {
-  const { shelter, photos, statuses, allMembers } = useUser()
+  const { shelter, photos, statuses, allMembers, locations: contextLocations, saveLocations: contextSaveLocations } = useUser()
 
   const [period,       setPeriod]       = useState('today')
   const [showHeat,     setShowHeat]     = useState(true)
@@ -229,14 +229,9 @@ export default function MapScreen() {
 
   const heatCities = LOCALITIES.filter(c => cityAlertData[c.name])
 
-  const [locations, setLocations] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(LOCATIONS_KEY) || '{}') } catch { return {} }
-  })
-
-  const saveLocations = (updated) => {
-    setLocations(updated)
-    localStorage.setItem(LOCATIONS_KEY, JSON.stringify(updated))
-  }
+  // משתמשים במיקומים מה-context הגלובלי
+  const locations = contextLocations
+  const saveLocations = contextSaveLocations
 
   // מיזוג מיקומים שמורים — בסיס כלשהו תמיד מקבל קואורדינטות מלון יערות הכרמל
   function resolveLocation(loc) {

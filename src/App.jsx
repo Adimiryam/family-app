@@ -47,6 +47,16 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem('familyapp_statuses') || '{}') } catch { return {} }
   })
 
+  // ── מיקומים: { [memberId]: { city, lat, lng, updatedAt } } ───
+  const [locations, setLocations] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('familyapp_locations') || '{}') } catch { return {} }
+  })
+
+  const saveLocations = (updated) => {
+    setLocations(updated)
+    localStorage.setItem('familyapp_locations', JSON.stringify(updated))
+  }
+
   const setMemberStatus = (memberId, statusKey) => {
     const updated = { ...statuses, [memberId]: statusKey }
     setStatuses(updated)
@@ -101,6 +111,7 @@ export default function App() {
       shelter, toggleShelter, shelterCount, shelterHistory,
       photos, savePhoto,
       statuses, setMemberStatus,
+      locations, saveLocations,
     }}>
       <BrowserRouter>
         <div style={{
