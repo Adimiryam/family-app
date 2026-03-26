@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.family-app.autopush</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/adibendavid/family-app/autopush.sh</string>
+  </array>
+
+  <!-- מאזין לקובץ שמשתנה בכל commit -->
+  <key>WatchPaths</key>
+  <array>
+    <string>/Users/adibendavid/family-app/.git/COMMIT_EDITMSG</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/family-app-autopush.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/family-app-autopush.log</string>
+</dict>
+</plist>
