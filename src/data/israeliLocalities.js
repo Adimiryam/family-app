@@ -1,3 +1,4 @@
+// All Israeli localities - 4 parts combined
 import { LOCALITIES_PART1 } from './israeliLocalities_1'
 import { LOCALITIES_PART2 } from './israeliLocalities_2'
 import { LOCALITIES_PART3 } from './israeliLocalities_3'
