@@ -707,18 +707,18 @@ export default function FamilyScreen() {
               />
             ))}
           </>
-        ) : (
+        ) : tab === 'grandchildren' ? (
           <>
             <div style={{
               padding: '8px 12px', background: '#fef3c7', borderRadius: 10,
               border: '1px solid #fde68a', marginBottom: 14, textAlign: 'center',
             }}>
               <span style={{ fontSize: 14, color: '#92400e', fontWeight: 600 }}>
-                ✨ {grandchildren.length} הנכדים האהובים שלנו!
+                ✨ {grandchildren.filter(c => !c.unborn).length} הנכדים האהובים שלנו!
               </span>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-              {grandchildren.map(child => (
+              {grandchildren.filter(c => !c.unborn).map(child => (
                 <GrandchildCard
                   key={child.id} child={child}
                   city={locations[child.id]?.city || null}
