@@ -123,7 +123,7 @@ function EditLocationsModal({ allPeople, locations, onSave, onClose, cityAlertDa
   const [search, setSearch]     = useState('')
 
   const adults      = allPeople.filter(p => !p.isGrandchild)
-  const kiddos      = allPeople.filter(p => p.isGrandchild)
+  const kiddos      = allPeople.filter(p => p.isGrandchild && !p.isUnborn)
   const displayList = tab === 'adults' ? adults : kiddos
   const editingPerson = editingId ? allPeople.find(p => p.id === editingId) : null
 
@@ -353,12 +353,27 @@ export default function MapScreen() {
     }
   }
 
+  // מיפוי עוברים לאמא שלהם — העוברון תמיד צמוד למיקום האמא
+  const motherMap = {}
+  grandchildren.filter(c => c.unborn).forEach(baby => {
+    const motherName = baby.parents?.split(/\s*ו/)[0]?.trim()
+    const mom = familyMembers.find(m => m.name === motherName)
+    if (mom) motherMap[baby.id] = mom.id
+  })
+
+  function resolveUnbornLocation(baby) {
+    const momId = motherMap[baby.id]
+    if (momId && locations[momId]) return resolveLocation(locations[momId])
+    return resolveLocation(locations[baby.id])
+  }
+
   const members = familyMembers.map(m => ({ ...m, ...resolveLocation(locations[m.id]) }))
   const kids = grandchildren.filter(c => !c.unborn).map(c => ({ ...c, isGrandchild: true, ...resolveLocation(locations[c.id]) }))
 
   const allPeople = [
     ...familyMembers.map(m => ({ ...m, ...resolveLocation(locations[m.id]) })),
     ...grandchildren.filter(c => !c.unborn).map(c => ({ ...c, isGrandchild: true, ...resolveLocation(locations[c.id]) })),
+    ...grandchildren.filter(c => c.unborn).map(c => ({ ...c, isGrandchild: true, isUnborn: true, ...resolveUnbornLocation(c) })),
   ]
 
   const shelterList = allMembers.filter(m => shelter[m.id]?.active)
@@ -636,7 +651,7 @@ export default function MapScreen() {
                       {people.map(p => (
                         <div key={p.id} style={{ marginBottom: 2 }}>
                           <strong>{p.name}</strong>
-                          {p.isGrandchild ? ' 🧒' : ` — ${p.role}`}
+                          {p.isUnborn ? ' 🤰' : p.isGrandchild ? ' 🧒' : ` — ${p.role}`}
                           {shelter[p.id]?.active && <span style={{ color: '#dc2626', fontWeight: 700 }}> 🚨 במקלט!</span>}
                         </div>
                       ))}
