@@ -4,6 +4,7 @@ const tabs = [
   { path: '/map',      icon: '🗺️',  label: 'מפה'     },
   { path: '/requests', icon: '🤝',  label: 'הצעות'   },
   { path: '/family',   icon: '👨‍👩‍👧‍👦', label: 'משפחה'  },
+  { path: '/wall',     icon: '📝',  label: 'קיר'     },
   { path: '/events',   icon: '📅',  label: 'אירועים' },
   { path: '/profile',  icon: '👤',  label: 'פרופיל'  },
 ]
@@ -73,14 +74,14 @@ export default function BottomNav({ shelterCount = 0 }) {
               </span>
             )}
             <span style={{
-              fontSize: active ? 26 : 22,
+              fontSize: active ? 22 : 19,
               transition: 'font-size 0.15s ease',
               filter: active ? 'none' : 'grayscale(60%) opacity(0.6)',
             }}>
               {tab.icon}
             </span>
             <span style={{
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: active ? 700 : 400,
               color: active ? '#1e40af' : '#94a3b8',
             }}>

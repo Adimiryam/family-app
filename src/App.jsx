@@ -4,6 +4,7 @@ import BottomNav from './components/BottomNav'
 import MapScreen from './screens/MapScreen'
 import RequestsScreen from './screens/RequestsScreen'
 import FamilyScreen from './screens/FamilyScreen'
+import FamilyWallScreen from './screens/FamilyWallScreen'
 import EventsScreen from './screens/EventsScreen'
 import ProfileScreen from './screens/ProfileScreen'
 import LoginScreen from './screens/LoginScreen'
@@ -139,6 +140,7 @@ export default function App() {
                   <Route path="/map"      element={<MapScreen />} />
                   <Route path="/requests" element={<RequestsScreen />} />
                   <Route path="/family"   element={<FamilyScreen />} />
+                  <Route path="/wall"     element={<FamilyWallScreen />} />
                   <Route path="/events"   element={<EventsScreen />} />
                   <Route path="/profile"  element={<ProfileScreen />} />
                   <Route path="*"         element={<Navigate to="/map" />} />
