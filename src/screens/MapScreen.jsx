@@ -377,7 +377,11 @@ function LocationSelector({ localities, selected, onSelect, onClose }) {
           <button
             key={loc.name}
             onClick={() => onSelect(loc.name)}
-            className={`text-xs p-1 rounded ${selected === loc.name ? 'bg-blue-500 text-white' : 'bg-white border border-gray-300 hover:border-blue-500'}`}
+            className={`text-xs p-1 rounded ${
+              selected === loc.name
+                ? 'bg-blue-500 text-white'
+                : 'bg-white border border-gray-300 hover:border-blue-500'
+            }`}
           >
             {loc.name}
           </button>
@@ -429,7 +433,10 @@ function EditLocationsModal({ allPeople, locations, onSave, onClose, cityAlertDa
             </label>
             <select
               value={newLocations[person.id] || ''}
-              onChange={(e) => setNewLocations(prev => ({...prev,[person.id]: e.target.value}))}
+              onChange={(e) => setNewLocations(prev => ({
+                ...prev,
+                [person.id]: e.target.value
+              }))}
               className="w-full px-3 py-2 border border-gray-300 rounded"
             >
               <option value="">-- בחר עיר --</option>
