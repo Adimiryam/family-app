@@ -5,339 +5,447 @@ import { familyMembers, grandchildren, alertLevelConfig, WAR_START_DATE } from '
 import { LOCALITIES, localityCoords, SPECIAL_BASE, DEFAULT_LOCATION } from '../data/israeliLocalities'
 import { getStatus } from '../data/statusConfig'
 import { fetchCurrentAlert, fetchAlertsByPeriod } from '../services/pikudHaoref'
-
-const LOCATIONS_KEY = 'familyapp_locations'
-const LOCALITIES_SORTED = [...LOCALITIES].sort((a, b) => a.name.localeCompare(b.name, 'he'))
-
-const PERIODS = [
-  { key: 'today',    label: 'היום',              icon: '📅' },
-  { key: 'yesterday',label: 'אתמול',             icon: '📅' },
-  { key: 'week',     label: '7 ימים',            icon: '🗓️' },
-  { key: 'sinceWar', label: `מ-${WAR_START_DATE}`, icon: '⚔️' },
-]
-const levelColors = { low: '#16a34a', medium: '#d97706', high: '#dc2626', critical: '#7c0000' }
-const levelRadius = { low: 12, medium: 18, high: 24, critical: 32 }
-
-function calcSecurityLevel(todayAlertData, dataLoaded) {
-  if (!dataLoaded) return { color: '#94a3b8', bg: '#f1f5f9', label: 'אין מידע', icon: '⚪' }
-  const citiesWithAlerts = Object.values(todayAlertData).filter(d => d.alerts > 0).length
-  if (citiesWithAlerts === 0) return { color: '#16a34a', bg: '#dcfce7', label: 'בטוח',  icon: '🟢' }
-  if (citiesWithAlerts <= 5)  return { color: '#d97706', bg: '#fef3c7', label: 'זהירות', icon: '🟡' }
-  return                             { color: '#dc2626', bg: '#fee2e2', label: 'מוגבר',  icon: '🔴' }
-}
-
-function formatDate(iso) {
-  if (!iso) return null
-  return new Date(iso).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit' })
-}
+import { PERIODS, levelColors, levelRadius, calcSecurityLevel, formatDate, getHebrewDateParts, formatHebrewDate } from '../utils/mapUtils'
+import InlineLocationPicker from '../components/map/InlineLocationPicker'
+import EditLocationsModal from '../components/map/EditLocationsModal'
+import FamilyList from '../components/map/FamilyList'
 
 // ────────────────────────────────────────────────────────────
-// המרת מספר לגימטריה עברית
+// מסך ראשי
 // ────────────────────────────────────────────────────────────
-function toGematria(num) {
-  const ones = ['', 'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט']
-  const tens = ['', 'י', 'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ']
-  const hundreds = ['', 'ק', 'ר', 'ש', 'ת']
-
-  if (num === 0) return '0'
-  if (num > 999) return num.toString()
-
-  let result = ''
-  const h = Math.floor(num / 100)
-  const t = Math.floor((num % 100) / 10)
-  const o = num % 10
-
-  if (h > 0) result += hundreds[h]
-  if (t > 0) result += tens[t]
-  if (o > 0) result += ones[o]
-
-  return result
-}
-
 export default function MapScreen() {
-  const { user } = useUser()
-  const [locations, setLocations] = useState({})
-  const [allPeople, setAllPeople] = useState([])
-  const [showEdit, setShowEdit] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [cityAlertData, setCityAlertData] = useState({})
-  const [selectedPeriod, setSelectedPeriod] = useState('today')
-  const [dataLoaded, setDataLoaded] = useState(false)
-  const [editingId, setEditingId] = useState(null)
-  const [editingInlineLocation, setEditingInlineLocation] = useState(null)
-  const mapRef = useRef(null)
+  const { currentUser, shelter, toggleShelter, photos, statuses, allMembers, locations: contextLocations, saveLocations: contextSaveLocations } = useUser()
 
-  // Load locations from localStorage
+  const [period,       setPeriod]       = useState('today')
+  const [showHeat,     setShowHeat]     = useState(true)
+  const [showFamily,   setShowFamily]   = useState(true)
+  const [showEdit,     setShowEdit]     = useState(false)
+  const [liveAlert,    setLiveAlert]    = useState(null)
+  const [realData,     setRealData]     = useState(null)
+  const [loading,      setLoading]      = useState(false)
+  const [dataSource,   setDataSource]   = useState('mock')
+  const [todayData,    setTodayData]    = useState({})
+  const [todayLoaded,  setTodayLoaded]  = useState(false)
+  const [editingId,    setEditingId]    = useState(null)
+  const pollRef = useRef(null)
+
+  const now = new Date()
+
   useEffect(() => {
-    const stored = localStorage.getItem(LOCATIONS_KEY)
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored)
-        setLocations(parsed)
-      } catch (e) {
-        console.error('Failed to parse stored locations:', e)
-      }
-    }
-  }, [])
-
-  // Initialize people from familyData
-  useEffect(() => {
-    const people = [...familyMembers, ...grandchildren]
-    setAllPeople(people)
-  }, [])
-
-  // Fetch alert data based on selected period
-  useEffect(() => {
-    setLoading(true)
-    setDataLoaded(false)
-
-    const fetchAlerts = async () => {
-      try {
-        let alerts = {}
-
-        if (selectedPeriod === 'today') {
-          const now = new Date()
-          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-          const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000)
-          alerts = await fetchAlertsByPeriod(todayStart, todayEnd)
-        } else if (selectedPeriod === 'yesterday') {
-          const now = new Date()
-          const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-          const yesterdayStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate())
-          const yesterdayEnd = new Date(yesterdayStart.getTime() + 24 * 60 * 60 * 1000)
-          alerts = await fetchAlertsByPeriod(yesterdayStart, yesterdayEnd)
-        } else if (selectedPeriod === 'week') {
-          const now = new Date()
-          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-          alerts = await fetchAlertsByPeriod(weekAgo, now)
-        } else if (selectedPeriod === 'sinceWar') {
-          const warStart = new Date(WAR_START_DATE)
-          const now = new Date()
-          alerts = await fetchAlertsByPeriod(warStart, now)
-        }
-
-        setCityAlertData(alerts)
-        setDataLoaded(true)
-      } catch (error) {
-        console.error('Error fetching alerts:', error)
-        setDataLoaded(true)
-      } finally {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      const result = await fetchAlertsByPeriod(period)
+      if (!cancelled) {
+        const { data, source } = result
+        setRealData(data)
+        setDataSource(source === 'unavailable' ? 'mock' : 'real')
         setLoading(false)
       }
     }
+    load()
+    return () => { cancelled = true }
+  }, [period])
 
-    fetchAlerts()
-  }, [selectedPeriod])
+  useEffect(() => {
+    fetchAlertsByPeriod('today').then(result => {
+      const { data } = result
+      console.log('📋 נתוני פיקוד העורף - היום:', data)
+      setTodayData(data)
+      setTodayLoaded(true)
+    })
+  }, [])
 
-  const getLocationData = (personId) => {
-    return locations[personId] || null
-  }
+  useEffect(() => {
+    async function checkLive() {
+      const alert = await fetchCurrentAlert()
+      setLiveAlert(alert)
+    }
+    checkLive()
+    pollRef.current = setInterval(checkLive, 10_000)
+    return () => clearInterval(pollRef.current)
+  }, [])
 
-  const handleInlineLocationSelect = (personId, locality) => {
-    const coords = localityCoords[locality] || DEFAULT_LOCATION
-    setLocations(prev => ({
-      ...prev,
-      [personId]: {
-        locality,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        timestamp: new Date().toISOString()
-      }
-    }))
-    setEditingInlineLocation(null)
-  }
+  const cityAlertData = realData || {}
+  const heatCities = LOCALITIES.filter(c => cityAlertData[c.name])
 
-  const saveLocations = (newLocations) => {
-    setLocations(newLocations)
-    localStorage.setItem(LOCATIONS_KEY, JSON.stringify(newLocations))
-    setShowEdit(false)
-  }
+  const locations = contextLocations
+  const saveLocations = contextSaveLocations
 
-  const getMarkerInfo = (location) => {
-    if (!location) return { color: '#94a3b8', radius: 12, label: '?' }
-    
-    const locality = location.locality
-    const alertData = cityAlertData[locality]
-    
-    if (!alertData) return { color: '#94a3b8', radius: 12, label: '?' }
-    if (alertData.alerts === 0) return { color: '#16a34a', radius: 12, label: '✓' }
-    
-    const alertLevel = alertLevelConfig.find(level => alertData.alerts >= level.minAlerts)?.level
-    if (!alertLevel) return { color: '#94a3b8', radius: 12, label: '?' }
-    
+  function resolveLocation(loc) {
+    const city = loc?.city ?? null
+    const isBase = city === SPECIAL_BASE.name
+    const freshCoords = city ? localityCoords[city] : null
     return {
-      color: levelColors[alertLevel] || '#94a3b8',
-      radius: levelRadius[alertLevel] || 12,
-      label: toGematria(alertData.alerts)
+      city: city || null,
+      lat: isBase ? SPECIAL_BASE.lat : (freshCoords?.lat ?? loc?.lat ?? DEFAULT_LOCATION.lat),
+      lng: isBase ? SPECIAL_BASE.lng : (freshCoords?.lng ?? loc?.lng ?? DEFAULT_LOCATION.lng),
     }
   }
 
-  const securityLevel = calcSecurityLevel(cityAlertData, dataLoaded)
-
-  // Collect all unique coordinates for map centering
-  const coordinates = []
-  allPeople.forEach(person => {
-    const locData = getLocationData(person.id)
-    if (locData && locData.latitude && locData.longitude) {
-      coordinates.push([locData.latitude, locData.longitude])
-    }
+  // מיפוי עוברים לאמא שלהם — העוברון תמיד צמוד למיקום האמא
+  const motherMap = {}
+  grandchildren.filter(c => c.unborn).forEach(baby => {
+    const motherName = baby.parents?.split(/\s*ו/)[0]?.trim()
+    const mom = familyMembers.find(m => m.name === motherName)
+    if (mom) motherMap[baby.id] = mom.id
   })
 
-  // Use first location or default if no locations
-  const mapCenter = coordinates.length > 0 ? coordinates[0] : [DEFAULT_LOCATION.latitude, DEFAULT_LOCATION.longitude]
-  const mapZoom = coordinates.length > 0 ? 10 : 8
+  function resolveUnbornLocation(baby) {
+    const momId = motherMap[baby.id]
+    if (momId && locations[momId]) return resolveLocation(locations[momId])
+    return resolveLocation(locations[baby.id])
+  }
+
+  const members = familyMembers.map(m => ({ ...m, ...resolveLocation(locations[m.id]) }))
+  const kids = grandchildren.filter(c => !c.unborn).map(c => ({ ...c, isGrandchild: true, ...resolveLocation(locations[c.id]) }))
+
+  const allPeople = [
+    ...familyMembers.map(m => ({ ...m, ...resolveLocation(locations[m.id]) })),
+    ...grandchildren.filter(c => !c.unborn).map(c => ({ ...c, isGrandchild: true, ...resolveLocation(locations[c.id]) })),
+    ...grandchildren.filter(c => c.unborn).map(c => ({ ...c, isGrandchild: true, isUnborn: true, ...resolveUnbornLocation(c) })),
+  ]
+
+  const shelterList = allMembers.filter(m => shelter[m.id]?.active)
+  const securityLevel = calcSecurityLevel(todayData, todayLoaded)
+
+  const familyAlertCities = new Set(allPeople.filter(p => p.city).map(p => p.city))
+  const totalAlerts = [...familyAlertCities].reduce((s, city) => s + (cityAlertData[city]?.alerts || 0), 0)
+
+  const peopleWithCity = allPeople.filter(p => p.city)
+  const sharedShelterMinutes24h = peopleWithCity
+    .filter(p => todayData[p.city])
+    .reduce((sum, p) => sum + (todayData[p.city]?.shelterMinutes || 0), 0)
+  const shelterTimeLabel = !todayLoaded
+    ? 'טוען...'
+    : peopleWithCity.length === 0
+      ? 'הגדר מיקומים'
+      : sharedShelterMinutes24h === 0
+        ? 'ללא אזעקות'
+        : sharedShelterMinutes24h < 60
+          ? `${sharedShelterMinutes24h} דק'`
+          : `${Math.floor(sharedShelterMinutes24h / 60)}ש' ${sharedShelterMinutes24h % 60}ד'`
+
+  const totalAlertsToday = [...new Set(allPeople.filter(p => p.city).map(p => p.city))]
+    .reduce((s, city) => s + (todayData[city]?.alerts || 0), 0)
+
+  const handleInlineLocationSelect = (personId, locationData) => {
+    saveLocations({ ...locations, [personId]: locationData })
+    setEditingId(null)
+  }
+
+  // תאריך עברי עם אותיות
+  const hebrewParts = getHebrewDateParts(now)
+  const hebrewDateStr = formatHebrewDate(now)
+
+  function isShabbat(date) {
+    const day = date.getDay()
+    const hour = date.getHours()
+    return (day === 5 && hour >= 18) || (day === 6 && hour < 20)
+  }
+
+  function getHolidayGreeting(dayNum, monthName) {
+    if (!dayNum || !monthName) return null
+    const d = dayNum
+    if (monthName.includes('ניסן') && d >= 15 && d <= 22) return 'חג פסח שמח! 🥓'
+    if (monthName.includes('סיוון') && d >= 6 && d <= 7) return 'חג שבועות שמח! 🌾'
+    if (monthName.includes('תשרי') && d >= 1 && d <= 2) return 'שנה טובה! 🍎🍯'
+    if (monthName.includes('תשרי') && d === 10) return 'גמר חתימה טובה 🗖️'
+    if (monthName.includes('תשרי') && d >= 15 && d <= 22) return 'חג סוכות שמח! 🌿'
+    if (monthName.includes('תשרי') && d === 23) return 'שמחת תורה שמח! 📜'
+    if (monthName.includes('כסלו') && d >= 25) return 'חנוכה שמח! 🕎'
+    if (monthName.includes('טבת') && d <= 2) return 'חנוכה שמח! 🕎'
+    if (monthName.includes('אדר') && d >= 14 && d <= 15) return 'פורים שמח! 🎭'
+    return null
+  }
+
+  const shabbatNow = isShabbat(now)
+  const holidayGreeting = getHolidayGreeting(hebrewParts.dayNum, hebrewParts.month)
+  const greeting = holidayGreeting || (shabbatNow ? 'שבת שלום 🕯️' : null)
+
+  const SWORDS_START = new Date('2023-10-07')
+  const ROAR_START = new Date('2026-02-28')
+  const daysSinceSwords = Math.floor((now - SWORDS_START) / (1000 * 60 * 60 * 24))
+  const daysSinceRoar = Math.floor((now - ROAR_START) / (1000 * 60 * 60 * 24))
+
 
   return (
-    <div className="h-full flex flex-col bg-white dark:bg-slate-900">
-      {/* Header */}
-      <div className="px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div
-              className="px-3 py-1 rounded-full text-sm font-semibold"
-              style={{ backgroundColor: securityLevel.bg, color: securityLevel.color }}
-            >
-              {securityLevel.icon} {securityLevel.label}
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+      {liveAlert && (
+        <div className="shelter-pulse" style={{
+          background: 'linear-gradient(90deg, #7f1d1d, #dc2626)',
+          color: 'white', padding: '10px 16px', flexShrink: 0,
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 24 }}>🚨</span>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800 }}>{liveAlert.title}</div>
+            <div style={{ fontSize: 12, opacity: 0.9 }}>
+              {Array.isArray(liveAlert.data) ? liveAlert.data.join(' · ') : liveAlert.data}
+            </div>
+            <div style={{ fontSize: 11, opacity: 0.8 }}>{liveAlert.desc}</div>
+          </div>
+        </div>
+      )}
+
+      {shelterList.length > 0 && (
+        <div className="shelter-pulse" style={{
+          background: 'linear-gradient(90deg, #dc2626, #b91c1c)',
+          color: 'white', padding: '8px 16px',
+          display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+        }}>
+          <span style={{ fontSize: 20 }}>🚨</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 800 }}>
+              {shelterList.map(m => m.name).join(', ')} — במקלט כרגע!
+            </div>
+            <div style={{ fontSize: 11, opacity: 0.9 }}>
+              {shelterList.length === 1 ? 'בן/בת משפחה אחד/ת' : `${shelterList.length} בני משפחה`} מדווחים על שהייה במקלט
             </div>
           </div>
-          <button
-            onClick={() => setShowEdit(true)}
-            className="px-3 py-1 rounded bg-white text-blue-600 hover:bg-blue-100 text-sm font-medium transition"
-          >
-            עריכה
-          </button>
         </div>
+      )}
 
-        {/* Period selector */}
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
-          {PERIODS.map(period => (
-            <button
-              key={period.key}
-              onClick={() => setSelectedPeriod(period.key)}
-              className={`px-3 py-1 rounded whitespace-nowrap text-sm transition ${
-                selectedPeriod === period.key
-                  ? 'bg-white text-blue-600 font-semibold'
-                  : 'bg-blue-500 text-white hover:bg-blue-400'
-              }`}
-            >
-              {period.icon} {period.label}
-            </button>
-          ))}
+      {/* כפתור מקלט */}
+      {currentUser && (
+        <button
+          onClick={() => toggleShelter(currentUser.id, !shelter[currentUser.id]?.active)}
+          className={shelter[currentUser.id]?.active ? 'shelter-pulse' : ''}
+          style={{
+            margin: '6px 12px', padding: '10px 14px', borderRadius: 12, flexShrink: 0,
+            background: shelter[currentUser.id]?.active
+              ? 'linear-gradient(135deg, #dc2626, #b91c1c)'
+              : 'linear-gradient(135deg, #f1f5f9, #e2e8f0)',
+            color: shelter[currentUser.id]?.active ? 'white' : '#475569',
+            fontSize: 14, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            border: shelter[currentUser.id]?.active ? 'none' : '1.5px solid #cbd5e1',
+            cursor: 'pointer',
+          }}
+        >
+          <span style={{ fontSize: 18 }}>{shelter[currentUser.id]?.active ? '🚨' : '🏠'}</span>
+          {shelter[currentUser.id]?.active ? 'אני במקלט כרגע!' : 'לחץ/י כשאת/ה במקלט'}
+        </button>
+      )}
+
+      {/* תאריך + ברכות */}
+      <div style={{
+        padding: '8px 14px', background: '#f8fafc',
+        borderBottom: '1px solid #e2e8f0', flexShrink: 0,
+        direction: 'rtl', textAlign: 'center',
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+          {now.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          {' · '}
+          {hebrewDateStr}
         </div>
-      </div>
-
-      {/* Map */}
-      <div className="flex-1 relative bg-gray-100">
-        {loading ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-white dark:bg-slate-900 z-10">
-            <div className="text-center">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-300 border-t-blue-600"></div>
-              <p className="mt-4 text-gray-600 dark:text-gray-400">טוען נתונים...</p>
-            </div>
+        {greeting && (
+          <div style={{
+            fontSize: 16, fontWeight: 800,
+            color: shabbatNow ? '#7c3aed' : '#d97706',
+            background: shabbatNow ? '#f5f3ff' : '#fffbeb',
+            padding: '4px 16px', borderRadius: 20,
+            display: 'inline-block', margin: '4px 0',
+          }}>
+            {greeting}
           </div>
-        ) : (
-          <MapContainer
-            ref={mapRef}
-            center={mapCenter}
-            zoom={mapZoom}
-            style={{ height: '100%', width: '100%' }}
-          >
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; OpenStreetMap contributors'
-            />
-            {allPeople.map(person => {
-              const locData = getLocationData(person.id)
-              if (!locData) return null
-
-              const markerInfo = getMarkerInfo(locData)
-              const statusInfo = getStatus(person.id)
-
-              return (
-                <CircleMarker
-                  key={person.id}
-                  center={[locData.latitude, locData.longitude]}
-                  radius={markerInfo.radius}
-                  fillColor={markerInfo.color}
-                  color={markerInfo.color}
-                  weight={2}
-                  opacity={0.8}
-                  fillOpacity={0.7}
-                >
-                  <Popup>
-                    <div className="text-center p-2 font-semibold text-gray-900">
-                      <div>{person.name}</div>
-                      <div className="text-xs text-gray-600 mt-1">{locData.locality}</div>
-                      {statusInfo?.status && (
-                        <div className="text-xs mt-1 p-1 rounded" style={{ backgroundColor: statusInfo.statusColor }}>
-                          {statusInfo.status}
-                        </div>
-                      )}
-                      {locData.timestamp && (
-                        <div className="text-xs text-gray-500 mt-1">{formatDate(locData.timestamp)}</div>
-                      )}
-                    </div>
-                  </Popup>
-                  <Tooltip>{person.name}</Tooltip>
-                </CircleMarker>
-              )
-            })}
-          </MapContainer>
         )}
       </div>
 
-      {/* Locations sidebar */}
-      <div className="h-64 border-t border-gray-200 dark:border-slate-700 overflow-y-auto bg-white dark:bg-slate-900">
-        <div className="p-4">
-          {allPeople.map(person => {
-            const locData = getLocationData(person.id)
-            const statusInfo = getStatus(person.id)
 
-            return (
-              <div key={person.id} className="mb-3 pb-3 border-b border-gray-200 dark:border-slate-700 last:border-0">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="font-semibold text-gray-900 dark:text-white">{person.name}</div>
-                  <div className="flex gap-1">
-                    {statusInfo?.statusColor && (
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: statusInfo.statusColor }}
-                        title={statusInfo.status}
-                      ></div>
-                    )}
-                  </div>
-                </div>
-                {locData ? (
-                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    <div className="font-medium text-gray-700 dark:text-gray-300">{locData.locality}</div>
-                    {locData.timestamp && (
-                      <div className="text-xs text-gray-500 dark:text-gray-500">{formatDate(locData.timestamp)}</div>
-                    )}
-                    <button
-                      onClick={() => setEditingId(editingId === person.id ? null : person.id)}
-                      className="text-blue-600 dark:text-blue-400 hover:underline text-xs mt-1"
-                    >
-                      {editingId === person.id ? 'ביטול' : 'שנה'}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-sm text-gray-500 dark:text-gray-400 italic">לא הוגדר מיקום</div>
-                )}
-                {editingId === person.id && (
-                  <div className="mt-2 p-2 bg-gray-100 dark:bg-slate-800 rounded">
-                    <LocationSelector
-                      selectedLocality={locData?.locality}
-                      onSelect={handleInlineLocationSelect}
-                      personId={person.id}
-                      onClose={() => setEditingId(null)}
-                    />
-                  </div>
-                )}
-              </div>
-            )
-          })}
+
+      <div style={{
+        background: 'linear-gradient(135deg, #1e3a8a, #1e40af)',
+        padding: '12px 16px', color: 'white',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
+      }}>
+        <div>
+          <h1 style={{ fontSize: 19, fontWeight: 800, marginBottom: 1 }}>🗺️ מפה ומדד הבטחון</h1>
+          <p style={{ fontSize: 11, opacity: 0.8, marginBottom: 0 }}>נתוני פיקוד העורף</p>
+          <div style={{ fontSize: 10, opacity: 0.7, marginTop: 2, display: 'flex', gap: 12 }}>
+            <span>⚔️ חרבות ברזל: יום {daysSinceSwords}</span>
+            <span>🦁 שאגת הארי: יום {daysSinceRoar}</span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => setShowEdit(true)} style={{
+            background: 'rgba(255,255,255,0.2)', borderRadius: 10,
+            padding: '7px 12px', color: 'white', fontSize: 12, fontWeight: 700,
+            border: 'none', cursor: 'pointer',
+          }}>
+            📍 ערוך
+          </button>
+          <div style={{ background: securityLevel.bg, borderRadius: 12, padding: '6px 12px', textAlign: 'center' }}>
+            <div style={{ fontSize: 9, color: securityLevel.color, fontWeight: 700 }}>מדד בטחון</div>
+            <div style={{ fontSize: 20 }}>{securityLevel.icon}</div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: securityLevel.color }}>{securityLevel.label}</div>
+          </div>
         </div>
       </div>
+
+      <div style={{
+        display: 'flex', gap: 6, padding: '8px 14px',
+        background: 'white', borderBottom: '1px solid #e2e8f0',
+        overflowX: 'auto', flexShrink: 0,
+      }}>
+        {PERIODS.map(p => (
+          <button
+            key={p.key}
+            onClick={() => setPeriod(p.key)}
+            style={{
+              padding: '6px 12px', borderRadius: 20, whiteSpace: 'nowrap',
+              background: period === p.key ? '#1e40af' : '#f1f5f9',
+              color: period === p.key ? 'white' : '#475569',
+              fontSize: 12, fontWeight: period === p.key ? 700 : 500,
+              border: period === p.key ? 'none' : '1px solid #e2e8f0',
+              flexShrink: 0,
+              cursor: 'pointer',
+            }}
+          >
+            {p.icon} {p.label}
+          </button>
+        ))}
+        <div style={{
+          marginRight: 'auto', fontSize: 10,
+          display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, paddingRight: 4,
+          color: loading ? '#94a3b8' : dataSource === 'real' ? '#16a34a' : '#d97706',
+          fontWeight: 600,
+        }}>
+          {loading ? '⏳ טוען...' : dataSource === 'real' ? '✅ פיקוד העורף' : '⚠️ נתונים מדומים'}
+        </div>
+      </div>
+
+      <div style={{ flex: '0 0 220px', position: 'relative' }}>
+        <MapContainer center={[31.5, 34.9]} zoom={7} style={{ height: '100%', width: '100%' }} zoomControl={false} attributionControl={false}>
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+
+          {showHeat && heatCities.map(city => {
+            const data = cityAlertData[city.name]
+            if (!data) return null
+            return (
+              <CircleMarker key={city.name} center={[city.lat, city.lng]}
+                radius={levelRadius[data.level]} fillColor={levelColors[data.level]}
+                color={levelColors[data.level]} weight={1} opacity={0.8} fillOpacity={0.35}>
+                <Tooltip direction="top">
+                  <span style={{ fontFamily: 'Heebo, Arial', direction: 'rtl', fontSize: 11 }}>
+                    {city.name}: {data.alerts} אזעקות
+                  </span>
+                </Tooltip>
+              </CircleMarker>
+            )
+          })}
+
+          {showFamily && (() => {
+            const grouped = {}
+            const allWithCoords = [
+              ...members.filter(m => m.lat && m.lng),
+              ...kids.filter(c => c.lat && c.lng),
+            ]
+            for (const p of allWithCoords) {
+              // מפתח נפרד למבוגרים ונכדים — כך שתמיד יהיו סמנים נפרדים
+              const type = p.isGrandchild ? 'kid' : 'adult'
+              const key = `${type}_${p.lat.toFixed(4)},${p.lng.toFixed(4)}`
+              if (!grouped[key]) grouped[key] = { lat: p.lat, lng: p.lng, people: [], isKidGroup: p.isGrandchild }
+              grouped[key].people.push(p)
+            }
+
+            return Object.values(grouped).map(({ lat, lng, people, isKidGroup }) => {
+              const anyInShelter = people.some(p => shelter[p.id]?.active)
+              const count = people.length
+              const hasMilitary = people.some(p => p.military && !p.isGrandchild)
+
+              // נכדים = כתום, חיילים = ירוק, מבוגרים = כחול
+              const fillColor = anyInShelter ? '#dc2626'
+                : isKidGroup ? '#f59e0b'
+                : hasMilitary ? '#16a34a'
+                : '#3b82f6'
+              const radius = anyInShelter ? 12 : count > 1 ? 10 : 7
+
+              // הזזה קטנה לנכדים כשהם באותו מיקום כמבוגרים
+              const offsetLat = isKidGroup ? lat + 0.003 : lat
+              const offsetLng = isKidGroup ? lng + 0.003 : lng
+
+              return (
+                <CircleMarker key={`${isKidGroup ? 'kid' : 'adult'}_${lat},${lng}`} center={[offsetLat, offsetLng]}
+                  radius={radius}
+                  fillColor={fillColor}
+                  color={anyInShelter ? '#dc2626' : 'white'}
+                  weight={anyInShelter ? 3 : 2} opacity={1} fillOpacity={anyInShelter ? 0.9 : 1}>
+                  <Popup>
+                    <div style={{ fontFamily: 'Heebo, Arial', direction: 'rtl', textAlign: 'right', fontSize: 13, minWidth: 140 }}>
+                      <div style={{ fontWeight: 700, marginBottom: 4 }}>📍 {people[0].city}</div>
+                      {people.map(p => (
+                        <div key={p.id} style={{ marginBottom: 2 }}>
+                          <strong>{p.name}</strong>
+                          {p.isUnborn ? ' 🤰' : p.isGrandchild ? ' 🧒' : ` — ${p.role}`}
+                          {shelter[p.id]?.active && <span style={{ color: '#dc2626', fontWeight: 700 }}> 🚨 במקלט!</span>}
+                        </div>
+                      ))}
+                      {count > 1 && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: '#64748b' }}>
+                          {count} אנשים במיקום זה
+                        </div>
+                      )}
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              )
+            })
+          })()}
+        </MapContainer>
+
+        <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 999, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <button onClick={() => setShowHeat(!showHeat)} style={{ padding: '5px 9px', borderRadius: 7, background: showHeat ? '#dc2626' : 'white', color: showHeat ? 'white' : '#64748b', fontSize: 10, fontWeight: 600, boxShadow: '0 2px 6px rgba(0,0,0,0.15)', fontFamily: 'Heebo, Arial', border: 'none', cursor: 'pointer' }}>
+            🔥 אזעקות
+          </button>
+          <button onClick={() => setShowFamily(!showFamily)} style={{ padding: '5px 9px', borderRadius: 7, background: showFamily ? '#3b82f6' : 'white', color: showFamily ? 'white' : '#64748b', fontSize: 10, fontWeight: 600, boxShadow: '0 2px 6px rgba(0,0,0,0.15)', fontFamily: 'Heebo, Arial', border: 'none', cursor: 'pointer' }}>
+            👨‍👩‍👧 משפחה
+          </button>
+        </div>
+
+        <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 999, background: 'rgba(255,255,255,0.93)', borderRadius: 8, padding: '5px 9px', fontSize: 10, boxShadow: '0 2px 6px rgba(0,0,0,0.15)', fontFamily: 'Heebo, Arial', direction: 'rtl' }}>
+          {Object.entries(alertLevelConfig).map(([key, cfg]) => (
+            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: cfg.color, display: 'inline-block' }} />
+              <span style={{ color: '#374151' }}>{cfg.label}</span>
+            </div>
+          ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2, borderTop: '1px solid #e2e8f0', paddingTop: 2, marginTop: 2 }}>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
+            <span style={{ color: '#374151' }}>מבוגר</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#16a34a', display: 'inline-block' }} />
+            <span style={{ color: '#374151' }}>חייל</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
+            <span style={{ color: '#374151' }}>נכד</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#dc2626', display: 'inline-block' }} />
+            <span style={{ color: '#dc2626', fontWeight: 700 }}>במקלט</span>
+          </div>
+        </div>
+      </div>
+
+      <FamilyList
+        members={members}
+        kids={kids}
+        cityAlertData={cityAlertData}
+        shelter={shelter}
+        photos={photos}
+        statuses={statuses}
+        editingId={editingId}
+        setEditingId={setEditingId}
+        handleInlineLocationSelect={handleInlineLocationSelect}
+        setShowEdit={setShowEdit}
+        totalAlertsToday={totalAlertsToday}
+        todayLoaded={todayLoaded}
+        shelterTimeLabel={shelterTimeLabel}
+        securityLevel={securityLevel}
+      />
 
       {showEdit && (
         <EditLocationsModal
@@ -348,110 +456,6 @@ export default function MapScreen() {
           cityAlertData={cityAlertData}
         />
       )}
-    </div>
-  )
-}
-
-function LocationSelector({ selectedLocality, onSelect, personId, onClose }) {
-  const [search, setSearch] = useState('')
-
-  const filtered = search
-    ? LOCALITIES_SORTED.filter(l =>
-        l.name.includes(search) || l.name.includes(search.split('').reverse().join(''))
-      )
-    : LOCALITIES_SORTED.slice(0, 10)
-
-  return (
-    <div className="bg-white dark:bg-slate-800 rounded border border-gray-300 dark:border-slate-600">
-      <input
-        type="text"
-        placeholder="חפש עיר..."
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        className="w-full px-3 py-2 border-b border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none"
-      />
-      <div className="max-h-40 overflow-y-auto">
-        {filtered.map(locality => (
-          <button
-            key={locality.name}
-            onClick={() => {
-              onSelect(personId, locality.name)
-              setSearch('')
-            }}
-            className={`w-full text-right px-3 py-2 text-sm hover:bg-blue-100 dark:hover:bg-slate-700 border-b border-gray-200 dark:border-slate-700 last:border-0 ${
-              selectedLocality === locality.name ? 'bg-blue-50 dark:bg-slate-700 font-semibold text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-gray-300'
-            }`}
-          >
-            {locality.name}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function EditLocationsModal({ allPeople, locations, onSave, onClose, cityAlertData }) {
-  const [localLocations, setLocalLocations] = useState(locations)
-  const [expandedPerson, setExpandedPerson] = useState(null)
-
-  const handleLocationSelect = (personId, locality) => {
-    const coords = localityCoords[locality] || DEFAULT_LOCATION
-    setLocalLocations(prev => ({
-      ...prev,
-      [personId]: {
-        locality,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        timestamp: new Date().toISOString()
-      }
-    }))
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-2xl max-w-md w-full mx-4 max-h-96 flex flex-col">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">עדכון מיקומים</h2>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          <div className="p-4">
-            {allPeople.map(person => (
-              <div key={person.id} className="mb-3">
-                <button
-                  onClick={() => setExpandedPerson(expandedPerson === person.id ? null : person.id)}
-                  className="w-full text-right px-3 py-2 rounded bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 font-medium text-gray-900 dark:text-white"
-                >
-                  {person.name} {expandedPerson === person.id ? '▼' : '▶'}
-                </button>
-                {expandedPerson === person.id && (
-                  <div className="mt-2 p-2 bg-gray-50 dark:bg-slate-700 rounded">
-                    <LocationSelector
-                      selectedLocality={localLocations[person.id]?.locality}
-                      personId={person.id}
-                      onSelect={handleLocationSelect}
-                      onClose={() => setEditingId(null)}
-                    />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-slate-700 flex gap-2">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2 bg-gray-300 dark:bg-slate-600 text-gray-900 dark:text-white rounded font-medium hover:bg-gray-400 dark:hover:bg-slate-500"
-          >
-            ביטול
-          </button>
-          <button
-            onClick={() => onSave(localLocations)}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded font-medium hover:bg-blue-700"
-          >
-            שמור
-          </button>
-        </div>
-      </div>
     </div>
   )
 }
