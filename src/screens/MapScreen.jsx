@@ -54,7 +54,7 @@ function toGematria(num) {
   return result
 }
 
-const MapScreen = () => {
+export default function MapScreen() {
   const { user } = useUser()
   const [locations, setLocations] = useState({})
   const [allPeople, setAllPeople] = useState([])
@@ -329,7 +329,6 @@ const MapScreen = () => {
                       selectedLocality={locData?.locality}
                       onSelect={handleInlineLocationSelect}
                       personId={person.id}
-                      onSelect={handleInlineLocationSelect}
                       onClose={() => setEditingId(null)}
                     />
                   </div>
@@ -456,5 +455,3 @@ function EditLocationsModal({ allPeople, locations, onSave, onClose, cityAlertDa
     </div>
   )
 }
-
-export default MapScreen
