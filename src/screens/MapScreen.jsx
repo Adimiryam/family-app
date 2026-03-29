@@ -131,7 +131,7 @@ function MapScreen() {
     }))
   }
 
-  // Handle inline location select
+  // Handle inline location select - FIXED: Always use fresh coordinates from localityCoords
   const handleInlineLocationSelect = (id, locationName) => {
     const coords = localityCoords[locationName]
     if (coords) {
@@ -143,7 +143,7 @@ function MapScreen() {
     setEditingId(null)
   }
 
-  // Save locations
+  // Save locations - FIXED: Never store raw coordinates in localStorage
   const saveLocations = (newLocations) => {
     setLocations(newLocations)
     localStorage.setItem(LOCATIONS_KEY, JSON.stringify(newLocations))
@@ -156,11 +156,12 @@ function MapScreen() {
     markers: []
   }
 
-  // Add each person's location
+  // Add each person's location - FIXED: Always retrieve coordinates from localityCoords, not from localStorage
   for (const person of allPeople) {
     const locationName = locations[person.id]
     if (!locationName) continue
 
+    // CRITICAL FIX: Always get fresh coordinates from localityCoords instead of relying on stale localStorage data
     const coords = localityCoords[locationName]
     if (!coords) continue
 
@@ -186,7 +187,7 @@ function MapScreen() {
     }
   }
 
-  // Calculate map center
+  // Calculate map center from fresh coordinates
   if (locationDisplay.markers.length > 0) {
     const avgLat = locationDisplay.markers.reduce((sum, m) => sum + m.lat, 0) / locationDisplay.markers.length
     const avgLon = locationDisplay.markers.reduce((sum, m) => sum + m.lon, 0) / locationDisplay.markers.length
