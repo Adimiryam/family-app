@@ -34,323 +34,309 @@ function formatDate(iso) {
 // ────────────────────────────────────────────────────────────
 // המרת מספר לגימטריה עברית
 // ────────────────────────────────────────────────────────────
-function toGimmatria(n) {
+function toGematria(num) {
   const ones = ['', 'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט']
   const tens = ['', 'י', 'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ']
-  const hundreds = ['', 'ק', 'ר', 'ש', 'ת', 'תק', 'תר', 'תש', 'תת']
+  const hundreds = ['', 'ק', 'ר', 'ש', 'ת']
 
-  if (n >= 1000) return ''
-  if (n < 1) return ''
+  if (num === 0) return '0'
+  if (num > 999) return num.toString()
 
-  const h = Math.floor(n / 100)
-  const t = Math.floor((n % 100) / 10)
-  const o = n % 10
+  let result = ''
+  const h = Math.floor(num / 100)
+  const t = Math.floor((num % 100) / 10)
+  const o = num % 10
 
-  let result = hundreds[h] + tens[t] + ones[o]
-  return result.replace(/([א-ת])([א-ת])$/, '$1\u05F3$2')
+  if (h > 0) result += hundreds[h]
+  if (t > 0) result += tens[t]
+  if (o > 0) result += ones[o]
+
+  return result
 }
 
-function getPicDisplay(pic) {
-  if (!pic) return ''
-  const [lat, lon] = pic.split(',').map(Number)
-  return `${lat.toFixed(2)}, ${lon.toFixed(2)}`
-}
-
-function getColorForAlerts(count, threshold = 1) {
-  if (count === 0) return '#16a34a'  // Green
-  if (count < threshold * 2) return '#d97706'  // Orange
-  return '#dc2626'  // Red
-}
-
-function getTimeStr(mins) {
-  if (mins < 1) return 'עכשיו'
-  if (mins < 60) return `לפני ${Math.floor(mins)}d`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `לפני ${hours}h`
-  const days = Math.floor(hours / 24)
-  if (days < 7) return `לפני ${days}d`
-  const weeks = Math.floor(days / 7)
-  return `לפני ${weeks}w`
-}
-
-function MapScreen() {
+const MapScreen = () => {
   const { user } = useUser()
   const [locations, setLocations] = useState({})
+  const [allPeople, setAllPeople] = useState([])
+  const [showEdit, setShowEdit] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [cityAlertData, setCityAlertData] = useState({})
-  const [todayAlertData, setTodayAlertData] = useState({})
+  const [selectedPeriod, setSelectedPeriod] = useState('today')
   const [dataLoaded, setDataLoaded] = useState(false)
   const [editingId, setEditingId] = useState(null)
-  const [showEdit, setShowEdit] = useState(false)
-  const [mapCenter, setMapCenter] = useState([31.73, 35.19])
-  const [mapZoom, setMapZoom] = useState(7)
+  const [editingInlineLocation, setEditingInlineLocation] = useState(null)
   const mapRef = useRef(null)
 
   // Load locations from localStorage
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(LOCATIONS_KEY)
-      if (stored) {
+    const stored = localStorage.getItem(LOCATIONS_KEY)
+    if (stored) {
+      try {
         const parsed = JSON.parse(stored)
         setLocations(parsed)
+      } catch (e) {
+        console.error('Failed to parse stored locations:', e)
       }
-    } catch (err) {
-      console.error('Error loading locations:', err)
     }
   }, [])
 
-  // Load alert data
+  // Initialize people from familyData
   useEffect(() => {
-    const loadAlerts = async () => {
-      try {
-        const [current, history] = await Promise.all([
-          fetchCurrentAlert(),
-          fetchAlertsByPeriod('sinceWar')
-        ])
-        setTodayAlertData(current || {})
-        setCityAlertData(history || {})
-      } catch (err) {
-        console.error('Error loading alerts:', err)
-      } finally {
-        setDataLoaded(true)
-      }
-    }
-    loadAlerts()
+    const people = [...familyMembers, ...grandchildren]
+    setAllPeople(people)
   }, [])
 
-  // Get all people to display
-  const allPeople = [
-    ...familyMembers.map(m => ({ name: m.hebrewName, id: m.id, isMember: true })),
-    ...grandchildren.map(g => ({ name: g.hebrewName, id: g.id, isMember: false }))
-  ]
+  // Fetch alert data based on selected period
+  useEffect(() => {
+    setLoading(true)
+    setDataLoaded(false)
 
-  // Handle location update
-  const handleLocationChange = (id, value) => {
+    const fetchAlerts = async () => {
+      try {
+        let alerts = {}
+
+        if (selectedPeriod === 'today') {
+          const now = new Date()
+          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+          const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000)
+          alerts = await fetchAlertsByPeriod(todayStart, todayEnd)
+        } else if (selectedPeriod === 'yesterday') {
+          const now = new Date()
+          const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+          const yesterdayStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate())
+          const yesterdayEnd = new Date(yesterdayStart.getTime() + 24 * 60 * 60 * 1000)
+          alerts = await fetchAlertsByPeriod(yesterdayStart, yesterdayEnd)
+        } else if (selectedPeriod === 'week') {
+          const now = new Date()
+          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+          alerts = await fetchAlertsByPeriod(weekAgo, now)
+        } else if (selectedPeriod === 'sinceWar') {
+          const warStart = new Date(WAR_START_DATE)
+          const now = new Date()
+          alerts = await fetchAlertsByPeriod(warStart, now)
+        }
+
+        setCityAlertData(alerts)
+        setDataLoaded(true)
+      } catch (error) {
+        console.error('Error fetching alerts:', error)
+        setDataLoaded(true)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchAlerts()
+  }, [selectedPeriod])
+
+  const getLocationData = (personId) => {
+    return locations[personId] || null
+  }
+
+  const handleInlineLocationSelect = (personId, locality) => {
+    const coords = localityCoords[locality] || DEFAULT_LOCATION
     setLocations(prev => ({
       ...prev,
-      [id]: value
+      [personId]: {
+        locality,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        timestamp: new Date().toISOString()
+      }
     }))
+    setEditingInlineLocation(null)
   }
 
-  // Handle inline location select - FIXED: Always use fresh coordinates from localityCoords
-  const handleInlineLocationSelect = (id, locationName) => {
-    const coords = localityCoords[locationName]
-    if (coords) {
-      setLocations(prev => ({
-        ...prev,
-        [id]: locationName
-      }))
-    }
-    setEditingId(null)
-  }
-
-  // Save locations - FIXED: Never store raw coordinates in localStorage
   const saveLocations = (newLocations) => {
     setLocations(newLocations)
     localStorage.setItem(LOCATIONS_KEY, JSON.stringify(newLocations))
     setShowEdit(false)
   }
 
-  // Build location data for map display
-  const locationDisplay = {
-    centers: [],
-    markers: []
-  }
-
-  // Add each person's location - FIXED: Always retrieve coordinates from localityCoords, not from localStorage
-  for (const person of allPeople) {
-    const locationName = locations[person.id]
-    if (!locationName) continue
-
-    // CRITICAL FIX: Always get fresh coordinates from localityCoords instead of relying on stale localStorage data
-    const coords = localityCoords[locationName]
-    if (!coords) continue
-
-    const [lat, lon] = coords
-    const alerts = cityAlertData[locationName] || { alerts: 0 }
-    const color = getColorForAlerts(alerts.alerts)
-
-    locationDisplay.markers.push({
-      id: person.id,
-      lat,
-      lon,
-      name: person.name,
-      location: locationName,
-      alerts: alerts.alerts,
-      color,
-      lastAlert: alerts.lastAlert
-    })
-
-    // For clustering centers
-    const count = locationDisplay.centers.filter(c => c.lat === lat && c.lon === lon).length
-    if (count === 0) {
-      locationDisplay.centers.push({ lat, lon, count: 1, color })
+  const getMarkerInfo = (location) => {
+    if (!location) return { color: '#94a3b8', radius: 12, label: '?' }
+    
+    const locality = location.locality
+    const alertData = cityAlertData[locality]
+    
+    if (!alertData) return { color: '#94a3b8', radius: 12, label: '?' }
+    if (alertData.alerts === 0) return { color: '#16a34a', radius: 12, label: '✓' }
+    
+    const alertLevel = alertLevelConfig.find(level => alertData.alerts >= level.minAlerts)?.level
+    if (!alertLevel) return { color: '#94a3b8', radius: 12, label: '?' }
+    
+    return {
+      color: levelColors[alertLevel] || '#94a3b8',
+      radius: levelRadius[alertLevel] || 12,
+      label: toGematria(alertData.alerts)
     }
   }
 
-  // Calculate map center from fresh coordinates
-  if (locationDisplay.markers.length > 0) {
-    const avgLat = locationDisplay.markers.reduce((sum, m) => sum + m.lat, 0) / locationDisplay.markers.length
-    const avgLon = locationDisplay.markers.reduce((sum, m) => sum + m.lon, 0) / locationDisplay.markers.length
-    setMapCenter([avgLat, avgLon])
-    setMapZoom(locationDisplay.markers.length > 3 ? 8 : 9)
-  }
+  const securityLevel = calcSecurityLevel(cityAlertData, dataLoaded)
 
-  const securityLevel = calcSecurityLevel(todayAlertData, dataLoaded)
+  // Collect all unique coordinates for map centering
+  const coordinates = []
+  allPeople.forEach(person => {
+    const locData = getLocationData(person.id)
+    if (locData && locData.latitude && locData.longitude) {
+      coordinates.push([locData.latitude, locData.longitude])
+    }
+  })
+
+  // Use first location or default if no locations
+  const mapCenter = coordinates.length > 0 ? coordinates[0] : [DEFAULT_LOCATION.latitude, DEFAULT_LOCATION.longitude]
+  const mapZoom = coordinates.length > 0 ? 10 : 8
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="h-full flex flex-col bg-white dark:bg-slate-900">
       {/* Header */}
-      <div className="flex justify-between items-center p-4 border-b border-gray-200">
-        <h1 className="text-2xl font-bold text-gray-800">
-          <span className="text-3xl mr-2">{securityLevel.icon}</span>
-          מפת משפחה
-        </h1>
-        <button
-          onClick={() => setShowEdit(true)}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded font-medium"
-        >
-          עדכון מיקומים
-        </button>
-      </div>
+      <div className="px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div
+              className="px-3 py-1 rounded-full text-sm font-semibold"
+              style={{ backgroundColor: securityLevel.bg, color: securityLevel.color }}
+            >
+              {securityLevel.icon} {securityLevel.label}
+            </div>
+          </div>
+          <button
+            onClick={() => setShowEdit(true)}
+            className="px-3 py-1 rounded bg-white text-blue-600 hover:bg-blue-100 text-sm font-medium transition"
+          >
+            עריכה
+          </button>
+        </div>
 
-      {/* Status bar */}
-      <div
-        className="p-3 text-center font-semibold text-white"
-        style={{ backgroundColor: securityLevel.color }}
-      >
-        {securityLevel.label}
+        {/* Period selector */}
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
+          {PERIODS.map(period => (
+            <button
+              key={period.key}
+              onClick={() => setSelectedPeriod(period.key)}
+              className={`px-3 py-1 rounded whitespace-nowrap text-sm transition ${
+                selectedPeriod === period.key
+                  ? 'bg-white text-blue-600 font-semibold'
+                  : 'bg-blue-500 text-white hover:bg-blue-400'
+              }`}
+            >
+              {period.icon} {period.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Map */}
-      <div className="flex-1 relative">
-        {dataLoaded ? (
+      <div className="flex-1 relative bg-gray-100">
+        {loading ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-white dark:bg-slate-900 z-10">
+            <div className="text-center">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-300 border-t-blue-600"></div>
+              <p className="mt-4 text-gray-600 dark:text-gray-400">טוען נתונים...</p>
+            </div>
+          </div>
+        ) : (
           <MapContainer
+            ref={mapRef}
             center={mapCenter}
             zoom={mapZoom}
-            className="w-full h-full"
-            ref={mapRef}
+            style={{ height: '100%', width: '100%' }}
           >
             <TileLayer
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; OpenStreetMap'
+              attribution='&copy; OpenStreetMap contributors'
             />
-            {locationDisplay.markers.map(marker => (
-              <CircleMarker
-                key={marker.id}
-                center={[marker.lat, marker.lon]}
-                radius={levelRadius[marker.alerts > 10 ? 'critical' : marker.alerts > 5 ? 'high' : marker.alerts > 0 ? 'medium' : 'low']}
-                fillColor={marker.color}
-                color={marker.color}
-                weight={2}
-                opacity={0.8}
-                fillOpacity={0.6}
-              >
-                <Popup>
-                  <div className="text-sm">
-                    <strong>{marker.name}</strong>
-                    <br />
-                    {marker.location}
-                    <br />
-                    התראות: {marker.alerts}
-                    {marker.lastAlert && (
-                      <>
-                        <br />
-                        אחרונה: {formatDate(marker.lastAlert)}
-                      </>
-                    )}
-                  </div>
-                </Popup>
-                <Tooltip>
-                  {marker.name} - {marker.location}
-                </Tooltip>
-              </CircleMarker>
-            ))}
+            {allPeople.map(person => {
+              const locData = getLocationData(person.id)
+              if (!locData) return null
+
+              const markerInfo = getMarkerInfo(locData)
+              const statusInfo = getStatus(person.id)
+
+              return (
+                <CircleMarker
+                  key={person.id}
+                  center={[locData.latitude, locData.longitude]}
+                  radius={markerInfo.radius}
+                  fillColor={markerInfo.color}
+                  color={markerInfo.color}
+                  weight={2}
+                  opacity={0.8}
+                  fillOpacity={0.7}
+                >
+                  <Popup>
+                    <div className="text-center p-2 font-semibold text-gray-900">
+                      <div>{person.name}</div>
+                      <div className="text-xs text-gray-600 mt-1">{locData.locality}</div>
+                      {statusInfo?.status && (
+                        <div className="text-xs mt-1 p-1 rounded" style={{ backgroundColor: statusInfo.statusColor }}>
+                          {statusInfo.status}
+                        </div>
+                      )}
+                      {locData.timestamp && (
+                        <div className="text-xs text-gray-500 mt-1">{formatDate(locData.timestamp)}</div>
+                      )}
+                    </div>
+                  </Popup>
+                  <Tooltip>{person.name}</Tooltip>
+                </CircleMarker>
+              )
+            })}
           </MapContainer>
-        ) : (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            <p>טוען נתונים...</p>
-          </div>
         )}
       </div>
 
-      {/* Locations List */}
-      <div className="bg-gray-50 border-t border-gray-200 max-h-1/3 overflow-y-auto">
+      {/* Locations sidebar */}
+      <div className="h-64 border-t border-gray-200 dark:border-slate-700 overflow-y-auto bg-white dark:bg-slate-900">
         <div className="p-4">
-          <h2 className="text-lg font-semibold mb-3 text-gray-800">מיקומים</h2>
           {allPeople.map(person => {
-            const locationName = locations[person.id]
-            const alerts = cityAlertData[locationName] || { alerts: 0 }
+            const locData = getLocationData(person.id)
+            const statusInfo = getStatus(person.id)
 
             return (
-              <div key={person.id} className="mb-3 p-3 bg-white rounded border border-gray-200">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <p className="font-semibold text-gray-800">{person.name}</p>
-                    <p className="text-sm text-gray-600">{locationName || 'לא הוגדר'}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-sm font-medium" style={{ color: getColorForAlerts(alerts.alerts) }}>
-                      {alerts.alerts} התראות
-                    </span>
+              <div key={person.id} className="mb-3 pb-3 border-b border-gray-200 dark:border-slate-700 last:border-0">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="font-semibold text-gray-900 dark:text-white">{person.name}</div>
+                  <div className="flex gap-1">
+                    {statusInfo?.statusColor && (
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: statusInfo.statusColor }}
+                        title={statusInfo.status}
+                      ></div>
+                    )}
                   </div>
                 </div>
-
-                {editingId === person.id ? (
-                  <div className="mt-2 border-t pt-2">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="חיפוש עיר..."
-                        autoFocus
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                        list={`localities-${person.id}`}
-                        onChange={(e) => handleLocationChange(person.id, e.target.value)}
-                      />
-                      <datalist id={`localities-${person.id}`}>
-                        {LOCALITIES_SORTED.map(loc => (
-                          <option key={loc.name} value={loc.name} />
-                        ))}
-                      </datalist>
-                      <button
-                        onClick={() => handleInlineLocationSelect(person.id, locations[person.id] || '')}
-                        className="mt-1 w-full text-sm bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded"
-                      >
-                        חדשכן
-                      </button>
-                    </div>
+                {locData ? (
+                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                    <div className="font-medium text-gray-700 dark:text-gray-300">{locData.locality}</div>
+                    {locData.timestamp && (
+                      <div className="text-xs text-gray-500 dark:text-gray-500">{formatDate(locData.timestamp)}</div>
+                    )}
+                    <button
+                      onClick={() => setEditingId(editingId === person.id ? null : person.id)}
+                      className="text-blue-600 dark:text-blue-400 hover:underline text-xs mt-1"
+                    >
+                      {editingId === person.id ? 'ביטול' : 'שנה'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500 dark:text-gray-400 italic">לא הוגדר מיקום</div>
+                )}
+                {editingId === person.id && (
+                  <div className="mt-2 p-2 bg-gray-100 dark:bg-slate-800 rounded">
                     <LocationSelector
-                      localities={LOCALITIES_SORTED}
-                      selected={locationName}
+                      selectedLocality={locData?.locality}
+                      onSelect={handleInlineLocationSelect}
+                      personId={person.id}
                       onSelect={handleInlineLocationSelect}
                       onClose={() => setEditingId(null)}
                     />
                   </div>
-                ) : (
-                  <button
-                    onClick={() => setEditingId(person.id)}
-                    className="mt-2 w-full text-sm bg-gray-200 hover:bg-gray-300 text-gray-800 px-2 py-1 rounded"
-                  >
-                    ערוך מיקום
-                  </button>
                 )}
               </div>
             )
           })}
-
-          {/* Placeholder for location selector that appears when editing */}
-          {editingId && (
-            <div className="mt-4 p-4 bg-blue-50 rounded border border-blue-200">
-              <LocationSelectorInline
-                localities={LOCALITIES_SORTED}
-                selected={locations[editingId] || ''}
-                onSelect={(id, location) => {
-                  handleInlineLocationSelect(editingId, location)
-                  setEditingId(null)
-                }}
-                onClose={() => setEditingId(null)}
-              />
-            </div>
-          )}
         </div>
       </div>
 
@@ -367,23 +353,37 @@ function MapScreen() {
   )
 }
 
-// Placeholder component for LocationSelector
-function LocationSelector({ localities, selected, onSelect, onClose }) {
+function LocationSelector({ selectedLocality, onSelect, personId, onClose }) {
+  const [search, setSearch] = useState('')
+
+  const filtered = search
+    ? LOCALITIES_SORTED.filter(l =>
+        l.name.includes(search) || l.name.includes(search.split('').reverse().join(''))
+      )
+    : LOCALITIES_SORTED.slice(0, 10)
+
   return (
-    <div className="mt-2 p-2 bg-gray-100 rounded">
-      <p className="text-xs text-gray-600 mb-2">בחר עיר מהרשימה</p>
-      <div className="grid grid-cols-3 gap-2">
-        {localities.slice(0, 12).map(loc => (
+    <div className="bg-white dark:bg-slate-800 rounded border border-gray-300 dark:border-slate-600">
+      <input
+        type="text"
+        placeholder="חפש עיר..."
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        className="w-full px-3 py-2 border-b border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white focus:outline-none"
+      />
+      <div className="max-h-40 overflow-y-auto">
+        {filtered.map(locality => (
           <button
-            key={loc.name}
-            onClick={() => onSelect(loc.name)}
-            className={`text-xs p-1 rounded ${
-              selected === loc.name
-                ? 'bg-blue-500 text-white'
-                : 'bg-white border border-gray-300 hover:border-blue-500'
+            key={locality.name}
+            onClick={() => {
+              onSelect(personId, locality.name)
+              setSearch('')
+            }}
+            className={`w-full text-right px-3 py-2 text-sm hover:bg-blue-100 dark:hover:bg-slate-700 border-b border-gray-200 dark:border-slate-700 last:border-0 ${
+              selectedLocality === locality.name ? 'bg-blue-50 dark:bg-slate-700 font-semibold text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-gray-300'
             }`}
           >
-            {loc.name}
+            {locality.name}
           </button>
         ))}
       </div>
@@ -391,71 +391,63 @@ function LocationSelector({ localities, selected, onSelect, onClose }) {
   )
 }
 
-// Placeholder component for LocationSelectorInline
-function LocationSelectorInline({ localities, selected, onSelect, onClose }) {
-  return (
-    <div>
-      <input
-        type="text"
-        placeholder="חיפוש עיר..."
-        defaultValue={selected}
-        autoFocus
-        className="w-full px-3 py-2 border border-gray-300 rounded mb-2"
-        list="inline-localities"
-      />
-      <datalist id="inline-localities">
-        {localities.map(loc => (
-          <option key={loc.name} value={loc.name} />
-        ))}
-      </datalist>
-      <button
-        onClick={onClose}
-        className="w-full text-sm bg-gray-300 hover:bg-gray-400 text-gray-800 px-2 py-1 rounded"
-      >
-        בטל
-      </button>
-    </div>
-  )
-}
-
-// Placeholder for EditLocationsModal
 function EditLocationsModal({ allPeople, locations, onSave, onClose, cityAlertData }) {
-  const [newLocations, setNewLocations] = useState(locations)
+  const [localLocations, setLocalLocations] = useState(locations)
+  const [expandedPerson, setExpandedPerson] = useState(null)
+
+  const handleLocationSelect = (personId, locality) => {
+    const coords = localityCoords[locality] || DEFAULT_LOCATION
+    setLocalLocations(prev => ({
+      ...prev,
+      [personId]: {
+        locality,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        timestamp: new Date().toISOString()
+      }
+    }))
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-96 overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4">עדכון מיקומים</h2>
-        {allPeople.map(person => (
-          <div key={person.id} className="mb-3">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {person.name}
-            </label>
-            <select
-              value={newLocations[person.id] || ''}
-              onChange={(e) => setNewLocations(prev => ({
-                ...prev,
-                [person.id]: e.target.value
-              }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded"
-            >
-              <option value="">-- בחר עיר --</option>
-              {LOCALITIES_SORTED.map(loc => (
-                <option key={loc.name} value={loc.name}>{loc.name}</option>
-              ))}
-            </select>
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-2xl max-w-md w-full mx-4 max-h-96 flex flex-col">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-slate-700">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">עדכון מיקומים</h2>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-4">
+            {allPeople.map(person => (
+              <div key={person.id} className="mb-3">
+                <button
+                  onClick={() => setExpandedPerson(expandedPerson === person.id ? null : person.id)}
+                  className="w-full text-right px-3 py-2 rounded bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 font-medium text-gray-900 dark:text-white"
+                >
+                  {person.name} {expandedPerson === person.id ? '▼' : '▶'}
+                </button>
+                {expandedPerson === person.id && (
+                  <div className="mt-2 p-2 bg-gray-50 dark:bg-slate-700 rounded">
+                    <LocationSelector
+                      selectedLocality={localLocations[person.id]?.locality}
+                      personId={person.id}
+                      onSelect={handleLocationSelect}
+                      onClose={() => setEditingId(null)}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
-        <div className="flex justify-end gap-2 mt-4">
+        </div>
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-slate-700 flex gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded"
+            className="flex-1 px-4 py-2 bg-gray-300 dark:bg-slate-600 text-gray-900 dark:text-white rounded font-medium hover:bg-gray-400 dark:hover:bg-slate-500"
           >
             ביטול
           </button>
           <button
-            onClick={() => onSave(newLocations)}
-            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded"
+            onClick={() => onSave(localLocations)}
+            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded font-medium hover:bg-blue-700"
           >
             שמור
           </button>
