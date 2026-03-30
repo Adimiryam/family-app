@@ -88,7 +88,16 @@ export default function App() {
 
     // טעינה ראשונית: תמונות (קובץ נפרד, כבד יותר)
     loadSharedPhotos().then(shared => {
-      if (!shared || !shared.photos) return
+      if (!shared || !shared.photos) {
+        // ענן ריק — אם יש תמונות מקומיות, דוחפים אותן לענן
+        try {
+          const localPhotos = JSON.parse(localStorage.getItem('familyapp_photos') || '{}')
+          if (Object.keys(localPhotos).length > 0) {
+            syncPhotosToCloud(localPhotos)
+          }
+        } catch {}
+        return
+      }
       if (Object.keys(shared.photos).length > 0) {
         setPhotos(prev => {
           const merged = { ...prev, ...shared.photos }
