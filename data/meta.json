@@ -1,7 +1,10 @@
 {
-  "lastUpdate": "2026-03-30T07:35:16.716Z",
+  "lastUpdate": "2026-03-30T07:40:23.128Z",
+  "sources": {
+    "tzevaadom": 50
+  },
   "counts": {
-    "today": 0,
+    "today": 50,
     "yesterday": 0,
     "week": 0,
     "sinceWar": 0
