@@ -38,15 +38,11 @@ jobs:
           const fs = require('fs');
 
           // ── Sources ────────────────────────────────────────────
-          // 1. Tzeva Adom API (globally accessible, not geo-blocked)
           const TZEVA_ADOM_HISTORY = 'https://api.tzevaadom.co.il/alerts-history';
-
-          // 2. Oref direct (geo-blocked outside Israel)
           const OREF_CURRENT  = 'https://www.oref.org.il/warningMessages/alert/Alerts.json';
           const OREF_HISTORY  = 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json';
           const OREF_RANGE    = 'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx';
 
-          // 3. CORS proxies (fallback for oref)
           const PROXIES = [
             url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
             url => 'https://corsproxy.io/?' + encodeURIComponent(url),
@@ -60,8 +56,6 @@ jobs:
             'Accept': 'application/json',
           };
 
-          // ── Helpers ────────────────────────────────────────────
-
           async function tryFetch(url, opts = {}) {
             try {
               const r = await fetch(url, { signal: AbortSignal.timeout(opts.timeout || 12000), ...opts });
@@ -73,12 +67,9 @@ jobs:
           }
 
           async function fetchWithProxy(url) {
-            // Direct
             const direct = await tryFetch(url, { headers: OREF_HEADERS });
             if (direct) { console.log('DIRECT OK:', url.split('?')[0]); return direct; }
             console.log('DIRECT FAIL:', url.split('?')[0]);
-
-            // Proxies
             for (const proxy of PROXIES) {
               const data = await tryFetch(proxy(url), { timeout: 15000 });
               if (data) { console.log('PROXY OK:', url.split('?')[0]); return data; }
@@ -91,22 +82,37 @@ jobs:
             return [String(d.getDate()).padStart(2,'0'), String(d.getMonth()+1).padStart(2,'0'), d.getFullYear()].join('.');
           }
 
-          // Normalize tzevaadom format to oref-like format
-          // tzevaadom returns: [{alerts, date, cities: [...], ...}] or similar
-          // oref returns: [{data: 'city1, city2', ...}]
-          function normalizeTzeva(items) {
-            if (!Array.isArray(items)) return null;
-            return items.map(item => {
-              // If already has 'data' field (oref format), pass through
-              if (item.data && typeof item.data === 'string') return item;
-              // Tzevaadom format: has 'cities' array
-              if (item.cities && Array.isArray(item.cities)) {
-                return { ...item, data: item.cities.join(', ') };
+          // Flatten nested tzevaadom format into oref-compatible flat array
+          // Input:  [{id, alerts: [{time, cities: ['a','b'], threat, isDrill}]}]
+          // Output: [{data: 'a, b', alertDate: '...', time, threat}]
+          function flattenTzeva(items) {
+            if (!Array.isArray(items)) return [];
+            const flat = [];
+            for (const group of items) {
+              const subAlerts = group.alerts || group.data || [];
+              if (!Array.isArray(subAlerts)) {
+                // Already flat item — normalize
+                if (group.cities && Array.isArray(group.cities)) {
+                  flat.push({ data: group.cities.join(', '), time: group.time, threat: group.threat });
+                } else if (group.data && typeof group.data === 'string') {
+                  flat.push(group);
+                }
+                continue;
               }
-              // Tzevaadom might use 'name' or other fields
-              if (item.name) return { ...item, data: item.name };
-              return item;
-            });
+              for (const alert of subAlerts) {
+                if (alert.cities && Array.isArray(alert.cities)) {
+                  const dateStr = alert.time ? new Date(alert.time * 1000).toISOString() : '';
+                  flat.push({
+                    data: alert.cities.join(', '),
+                    alertDate: dateStr,
+                    time: alert.time,
+                    threat: alert.threat,
+                    isDrill: alert.isDrill || false,
+                  });
+                }
+              }
+            }
+            return flat;
           }
 
           const now = new Date();
@@ -123,15 +129,18 @@ jobs:
             console.log('current:', hasCurrent ? 'ACTIVE ALERT' : 'no alert');
 
             // ── Tzeva Adom alerts-history (globally accessible!) ─
-            let tzevaData = null;
+            let tzevaFlat = [];
             try {
               console.log('Trying Tzeva Adom API...');
               const tzevaRaw = await tryFetch(TZEVA_ADOM_HISTORY, { timeout: 15000 });
               if (tzevaRaw) {
-                console.log('TZEVA ADOM OK! Type:', typeof tzevaRaw, 'IsArray:', Array.isArray(tzevaRaw));
-                console.log('TZEVA ADOM sample:', JSON.stringify(tzevaRaw).slice(0, 500));
-                tzevaData = normalizeTzeva(Array.isArray(tzevaRaw) ? tzevaRaw : (tzevaRaw.alerts || tzevaRaw.data || []));
-                if (tzevaData) console.log('TZEVA ADOM normalized:', tzevaData.length, 'items');
+                console.log('TZEVA ADOM raw sample:', JSON.stringify(tzevaRaw).slice(0, 300));
+                const rawItems = Array.isArray(tzevaRaw) ? tzevaRaw : (tzevaRaw.alerts || tzevaRaw.data || []);
+                tzevaFlat = flattenTzeva(rawItems);
+                console.log('TZEVA ADOM flattened:', tzevaFlat.length, 'alert records');
+                if (tzevaFlat.length > 0) {
+                  console.log('Sample flat item:', JSON.stringify(tzevaFlat[0]));
+                }
               } else {
                 console.log('TZEVA ADOM: no data returned');
               }
@@ -139,10 +148,9 @@ jobs:
 
             // ── Today (last 24h) ─────────────────────────────────
             let todayArr = [];
-            if (tzevaData && tzevaData.length > 0) {
-              // Use tzeva data as today's alerts (it returns recent alerts)
-              todayArr = tzevaData;
-              console.log('today: using tzeva adom data,', todayArr.length, 'records');
+            if (tzevaFlat.length > 0) {
+              todayArr = tzevaFlat;
+              console.log('today: using flattened tzeva adom data,', todayArr.length, 'records');
             } else {
               const hist = await fetchWithProxy(OREF_HISTORY);
               todayArr = Array.isArray(hist) ? hist : [];
@@ -178,7 +186,7 @@ jobs:
             fs.writeFileSync('data/meta.json', JSON.stringify({
               lastUpdate: now.toISOString(),
               sources: {
-                tzevaadom: tzevaData ? tzevaData.length : 'failed',
+                tzevaadom: tzevaFlat.length || 'failed',
               },
               counts: {
                 today: todayArr.length,
