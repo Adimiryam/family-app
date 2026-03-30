@@ -1,6 +1,22 @@
 {
   "requests": [
     {
+      "type": "offer",
+      "category": "אחר",
+      "title": "בדיקה",
+      "description": "בדיקה",
+      "date": "31/03/2026",
+      "hours": "יום שלם",
+      "fullDay": true,
+      "numKids": "",
+      "price": "20",
+      "id": 1774887832057,
+      "author": "יצחק",
+      "signedUp": [],
+      "interested": [],
+      "createdAt": "30.3.2026"
+    },
+    {
       "type": "request",
       "category": "בייביסיטר",
       "title": "צריכים בייביסיטר לעומר במשרד של אבא",
@@ -54,5 +70,5 @@
       "createdAt": "2026-03-18"
     }
   ],
-  "updatedAt": "2026-03-30T15:56:53.306Z"
+  "updatedAt": "2026-03-30T16:23:52.059Z"
 }
