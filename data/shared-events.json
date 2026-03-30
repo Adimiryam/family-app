@@ -14,50 +14,6 @@
       "notAttending": []
     },
     {
-      "id": 1,
-      "title": "שבת משפחתית 🕍",
-      "date": "05/04/2026",
-      "time": "12:00",
-      "location": "בית נועם ויעל, פסגות",
-      "description": "שבת חגיגית עם כל המשפחה! אוכל טעים, שיחות, שמחה",
-      "tasks": [
-        {
-          "id": 1,
-          "name": "הכנת עוגה",
-          "assignedTo": [],
-          "slots": 1
-        },
-        {
-          "id": 2,
-          "name": "סלט ירקות",
-          "assignedTo": [],
-          "slots": 1
-        },
-        {
-          "id": 3,
-          "name": "תכנון פעילות לילדים",
-          "assignedTo": [],
-          "slots": 1
-        },
-        {
-          "id": 4,
-          "name": "קניות",
-          "assignedTo": [],
-          "slots": 1
-        },
-        {
-          "id": 5,
-          "name": "הגעה מוקדמת לעזור",
-          "assignedTo": [],
-          "slots": 1
-        }
-      ],
-      "attending": [],
-      "notAttending": [],
-      "color": "#1e40af",
-      "emoji": "🕍"
-    },
-    {
       "id": 2,
       "title": "מסיבת הודיה 🎉",
       "date": "02/05/2026",
@@ -106,7 +62,51 @@
       "notAttending": [],
       "color": "#7c3aed",
       "emoji": "🎉"
+    },
+    {
+      "id": 1,
+      "title": "שבת משפחתית 🕍",
+      "date": "05/04/2026",
+      "time": "12:00",
+      "location": "בית נועם ויעל, פסגות",
+      "description": "שבת חגיגית עם כל המשפחה! אוכל טעים, שיחות, שמחה",
+      "tasks": [
+        {
+          "id": 1,
+          "name": "הכנת עוגה",
+          "assignedTo": [],
+          "slots": 1
+        },
+        {
+          "id": 2,
+          "name": "סלט ירקות",
+          "assignedTo": [],
+          "slots": 1
+        },
+        {
+          "id": 3,
+          "name": "תכנון פעילות לילדים",
+          "assignedTo": [],
+          "slots": 1
+        },
+        {
+          "id": 4,
+          "name": "קניות",
+          "assignedTo": [],
+          "slots": 1
+        },
+        {
+          "id": 5,
+          "name": "הגעה מוקדמת לעזור",
+          "assignedTo": [],
+          "slots": 1
+        }
+      ],
+      "attending": [],
+      "notAttending": [],
+      "color": "#1e40af",
+      "emoji": "🕍"
     }
   ],
-  "updatedAt": "2026-03-30T16:52:21.632Z"
+  "updatedAt": "2026-03-30T16:52:24.989Z"
 }
