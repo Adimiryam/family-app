@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useUser } from '../App'
 import { initialRequests } from '../data/familyData'
+import { loadSharedRequests, saveSharedRequestsImmediate } from '../services/sharedState'
 
 const STORAGE_KEY = 'familyapp_requests'
 
@@ -12,10 +13,60 @@ function useRequests() {
     } catch { return initialRequests }
   })
 
-  const save = (updated) => {
+  const requestsRef = useRef(requests)
+  requestsRef.current = requests
+
+  const save = useCallback((updated) => {
     setRequests(updated)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-  }
+    // סנכרון לענן
+    saveSharedRequestsImmediate(updated)
+  }, [])
+
+  // טעינה ראשונית מהענן + מיזוג
+  useEffect(() => {
+    loadSharedRequests().then(shared => {
+      if (!shared || !shared.requests) {
+        // ענן ריק — דוחפים מקומי לענן
+        const local = requestsRef.current
+        if (local && local.length > 0) {
+          console.log('[Requests] cloud empty, pushing local:', local.length)
+          saveSharedRequestsImmediate(local)
+        }
+        return
+      }
+      // ממזגים: לוקחים את הענן כמקור אמת (כי הוא מכיל שינויים מכל היוזרים)
+      // אבל מוסיפים פריטים מקומיים שלא קיימים בענן
+      const cloudRequests = shared.requests
+      const local = requestsRef.current
+      const cloudIds = new Set(cloudRequests.map(r => r.id))
+      const localOnly = local.filter(r => !cloudIds.has(r.id))
+      const merged = [...localOnly, ...cloudRequests]
+      if (localOnly.length > 0) {
+        console.log('[Requests] found local-only items, pushing merged:', localOnly.length, 'new')
+        saveSharedRequestsImmediate(merged)
+      }
+      setRequests(merged)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+    }).catch(e => console.warn('[Requests] cloud load error:', e.message))
+
+    // polling כל 30 שניות
+    const interval = setInterval(async () => {
+      try {
+        const shared = await loadSharedRequests()
+        if (!shared || !shared.requests) return
+        const cloudRequests = shared.requests
+        const local = requestsRef.current
+        const cloudIds = new Set(cloudRequests.map(r => r.id))
+        const localOnly = local.filter(r => !cloudIds.has(r.id))
+        const merged = [...localOnly, ...cloudRequests]
+        setRequests(merged)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+      } catch {}
+    }, 30000)
+
+    return () => clearInterval(interval)
+  }, [])
 
   return [requests, save]
 }

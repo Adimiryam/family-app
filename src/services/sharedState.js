@@ -1,5 +1,5 @@
 /**
- * שירות מצב משותף — שומר מיקומים, מקלט, סטטוסים ותמונות ב-GitHub
+ * שירות מצב משותף — שומר מיקומים, מקלט, סטטוסים, תמונות והצעות ב-GitHub
  * כך שכל בני המשפחה רואים את אותם נתונים.
  *
  * קריאה: GitHub raw + API fallback (ללא אימות, מהיר)
@@ -9,8 +9,9 @@
 const OWNER = 'Adimiryam'
 const REPO  = 'family-app'
 const BRANCH = 'alerts-data'
-const STATE_FILE  = 'data/shared-state.json'
-const PHOTOS_FILE = 'data/shared-photos.json'
+const STATE_FILE    = 'data/shared-state.json'
+const PHOTOS_FILE   = 'data/shared-photos.json'
+const REQUESTS_FILE = 'data/shared-requests.json'
 const RAW_BASE = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}`
 const API_BASE = `https://api.github.com/repos/${OWNER}/${REPO}/contents`
 
@@ -61,8 +62,12 @@ export async function loadSharedPhotos() {
   return loadFromGitHub(PHOTOS_FILE)
 }
 
+// ── קריאת הצעות ובקשות משותפות ─────────────────────────
+export async function loadSharedRequests() {
+  return loadFromGitHub(REQUESTS_FILE)
+}
+
 // ── כתיבה (עם debounce) ──────────────────────────────────
-let fileSha = null
 let saveTimer = null
 
 export function saveSharedStateDebounced(state) {
@@ -71,7 +76,6 @@ export function saveSharedStateDebounced(state) {
   saveTimer = setTimeout(() => doSave(STATE_FILE, state, 'fileSha'), 2000)
 }
 
-let photosSha = null
 let photosSaveTimer = null
 
 export function saveSharedPhotosDebounced(photos) {
@@ -87,7 +91,21 @@ export function saveSharedPhotosImmediate(photos) {
   doSave(PHOTOS_FILE, { photos, updatedAt: new Date().toISOString() }, 'photosSha')
 }
 
-const shas = { fileSha: null, photosSha: null }
+let requestsSaveTimer = null
+
+export function saveSharedRequestsDebounced(requests) {
+  if (!TOKEN) return
+  if (requestsSaveTimer) clearTimeout(requestsSaveTimer)
+  requestsSaveTimer = setTimeout(() => doSave(REQUESTS_FILE, { requests, updatedAt: new Date().toISOString() }, 'requestsSha'), 2000)
+}
+
+export function saveSharedRequestsImmediate(requests) {
+  if (!TOKEN) { console.warn('[sharedState] no token — cannot save requests'); return }
+  console.log('[sharedState] immediate requests save, count:', requests.length)
+  doSave(REQUESTS_FILE, { requests, updatedAt: new Date().toISOString() }, 'requestsSha')
+}
+
+const shas = { fileSha: null, photosSha: null, requestsSha: null }
 
 async function doSave(file, data, shaKey, retry = 0) {
   if (!TOKEN || retry > 2) return
