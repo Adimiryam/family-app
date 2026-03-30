@@ -149,6 +149,7 @@
     }
   },
   "statuses": {
+    "11": "trip",
     "17": "home"
   },
   "shelterHistory": {
@@ -161,5 +162,5 @@
       "minutes": 0
     }
   },
-  "updatedAt": "2026-03-30T16:46:50.711Z"
+  "updatedAt": "2026-03-30T16:54:42.856Z"
 }
