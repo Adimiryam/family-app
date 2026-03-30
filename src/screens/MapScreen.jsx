@@ -112,22 +112,19 @@ export default function MapScreen() {
   const familyAlertCities = new Set(allPeople.filter(p => p.city).map(p => p.city))
   const totalAlerts = [...familyAlertCities].reduce((s, city) => s + (cityAlertData[city]?.alerts || 0), 0)
 
-  const peopleWithCity = allPeople.filter(p => p.city)
-  const sharedShelterMinutes24h = peopleWithCity
-    .filter(p => todayData[p.city])
-    .reduce((sum, p) => sum + (todayData[p.city]?.shelterMinutes || 0), 0)
+  // נתוני אזעקות עבור העיר של המשתמש הנוכחי בלבד
+  const currentUserCity = currentUser ? (locations[currentUser.id]?.city || null) : null
+  const totalAlertsToday = currentUserCity ? (todayData[currentUserCity]?.alerts || 0) : 0
+  const sharedShelterMinutes24h = currentUserCity ? (todayData[currentUserCity]?.shelterMinutes || 0) : 0
   const shelterTimeLabel = !todayLoaded
     ? 'טוען...'
-    : peopleWithCity.length === 0
-      ? 'הגדר מיקומים'
+    : !currentUserCity
+      ? 'הגדר מיקום'
       : sharedShelterMinutes24h === 0
         ? 'ללא אזעקות'
         : sharedShelterMinutes24h < 60
           ? `${sharedShelterMinutes24h} דק'`
           : `${Math.floor(sharedShelterMinutes24h / 60)}ש' ${sharedShelterMinutes24h % 60}ד'`
-
-  const totalAlertsToday = [...new Set(allPeople.filter(p => p.city).map(p => p.city))]
-    .reduce((s, city) => s + (todayData[city]?.alerts || 0), 0)
 
   const handleInlineLocationSelect = (personId, locationData) => {
     saveLocations({ ...locations, [personId]: locationData })
@@ -442,6 +439,7 @@ export default function MapScreen() {
         handleInlineLocationSelect={handleInlineLocationSelect}
         setShowEdit={setShowEdit}
         totalAlertsToday={totalAlertsToday}
+        currentUserCity={currentUserCity}
         todayLoaded={todayLoaded}
         shelterTimeLabel={shelterTimeLabel}
         securityLevel={securityLevel}
