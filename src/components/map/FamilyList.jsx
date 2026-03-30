@@ -1,14 +1,57 @@
+import { useState } from 'react'
 import { alertLevelConfig } from '../../data/familyData'
 import { getStatus } from '../../data/statusConfig'
 import InlineLocationPicker from './InlineLocationPicker'
 
-export default function FamilyList({ members, kids, cityAlertData, shelter, photos, statuses, editingId, setEditingId, handleInlineLocationSelect, setShowEdit, totalAlertsToday, currentUserCity, todayLoaded, shelterTimeLabel, securityLevel }) {
+export default function FamilyList({ members, kids, cityAlertData, shelter, photos, statuses, editingId, setEditingId, handleInlineLocationSelect, setShowEdit, totalAlertsToday, totalAlertsTodayFamily, currentUserCity, todayLoaded, shelterTimeLabelUser, shelterTimeLabelFamily, securityLevel }) {
+  const [viewMode, setViewMode] = useState('user') // 'user' = המיקום שלי, 'family' = כל המשפחה
+
+  const isFamily = viewMode === 'family'
+  const alertsValue = isFamily ? (totalAlertsTodayFamily || (todayLoaded ? '0' : '—')) : (totalAlertsToday || (todayLoaded ? '0' : '—'))
+  const alertsLabel = isFamily ? 'אזעקות כל המשפחה' : (currentUserCity ? `אזעקות ב${currentUserCity}` : 'אזעקות היום')
+  const shelterValue = isFamily ? shelterTimeLabelFamily : shelterTimeLabelUser
+  const shelterLabel = isFamily ? 'ממד כל המשפחה' : 'ממד 24שׁ'
+
   return (
     <div style={{ flex: 1, overflow: 'auto', padding: '12px 14px' }}>
+
+      {/* כפתור מעבר בין מצבים */}
+      <div style={{
+        display: 'flex', justifyContent: 'center', gap: 0,
+        marginBottom: 10, borderRadius: 10, overflow: 'hidden',
+        border: '1.5px solid #e2e8f0',
+      }}>
+        <button
+          onClick={() => setViewMode('user')}
+          style={{
+            flex: 1, padding: '7px 0', fontSize: 12, fontWeight: 700,
+            background: !isFamily ? '#1e40af' : 'white',
+            color: !isFamily ? 'white' : '#64748b',
+            border: 'none', cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+        >
+          📍 המיקום שלי
+        </button>
+        <button
+          onClick={() => setViewMode('family')}
+          style={{
+            flex: 1, padding: '7px 0', fontSize: 12, fontWeight: 700,
+            background: isFamily ? '#1e40af' : 'white',
+            color: isFamily ? 'white' : '#64748b',
+            border: 'none', cursor: 'pointer',
+            borderRight: '1.5px solid #e2e8f0',
+            transition: 'all 0.2s',
+          }}
+        >
+          👨‍👩‍👧 כל המשפחה
+        </button>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
         {[
-          { label: currentUserCity ? `אזעקות ב${currentUserCity}` : 'אזעקות היום', value: totalAlertsToday || (todayLoaded ? '0' : '—'), icon: '🚨', color: '#dc2626', bg: '#fee2e2' },
-          { label: 'ממד 24שׁ', value: shelterTimeLabel, icon: '🏠', color: '#7c3aed', bg: '#f5f3ff' },
+          { label: alertsLabel, value: alertsValue, icon: '🚨', color: '#dc2626', bg: '#fee2e2' },
+          { label: shelterLabel, value: shelterValue, icon: '🏠', color: '#7c3aed', bg: '#f5f3ff' },
           { label: 'מדד בטחון',   value: securityLevel.label, icon: securityLevel.icon, color: securityLevel.color, bg: securityLevel.bg },
         ].map(s => (
           <div key={s.label} style={{ background: s.bg, borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
