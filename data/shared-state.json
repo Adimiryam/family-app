@@ -141,8 +141,7 @@
   },
   "shelter": {
     "1": {
-      "active": true,
-      "since": "2026-03-30T17:07:36.831Z"
+      "active": false
     },
     "3": {
       "active": false
@@ -163,6 +162,10 @@
     "17": "home"
   },
   "shelterHistory": {
+    "1": {
+      "date": "2026-03-30",
+      "minutes": 16
+    },
     "3": {
       "date": "2026-03-30",
       "minutes": 0
@@ -176,5 +179,5 @@
       "minutes": 0
     }
   },
-  "updatedAt": "2026-03-30T17:18:38.767Z"
+  "updatedAt": "2026-03-30T17:23:18.695Z"
 }
