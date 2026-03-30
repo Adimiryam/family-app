@@ -112,15 +112,21 @@ export default function MapScreen() {
   const familyAlertCities = new Set(allPeople.filter(p => p.city).map(p => p.city))
   const totalAlerts = [...familyAlertCities].reduce((s, city) => s + (cityAlertData[city]?.alerts || 0), 0)
 
-  // נתוני אזעקות עבור העיר של המשתמש הנוכחי בלבד
+  // ── נתונים לפי התקופה הנבחרת (היום/אתמול/שבוע/מלחמה) ──
   const currentUserCity = currentUser ? (locations[currentUser.id]?.city || null) : null
-  const totalAlertsToday = currentUserCity ? (todayData[currentUserCity]?.alerts || 0) : 0
-  const shelterMinutesUser = currentUserCity ? (todayData[currentUserCity]?.shelterMinutes || 0) : 0
-
-  // נתוני אזעקות כלל-משפחתיים (סך הכל בכל הערים של בני המשפחה)
   const familyCitiesUnique = [...new Set(allPeople.filter(p => p.city).map(p => p.city))]
-  const totalAlertsTodayFamily = familyCitiesUnique.reduce((s, city) => s + (todayData[city]?.alerts || 0), 0)
-  const shelterMinutesFamily = familyCitiesUnique.reduce((s, city) => s + (todayData[city]?.shelterMinutes || 0), 0)
+
+  // אזעקות ומ"מד לפי תקופה — עבור המשתמש
+  const alertsUser = currentUserCity ? (cityAlertData[currentUserCity]?.alerts || 0) : 0
+  const shelterMinutesUser = currentUserCity ? (cityAlertData[currentUserCity]?.shelterMinutes || 0) : 0
+
+  // אזעקות ומ"מד לפי תקופה — עבור כל המשפחה
+  const alertsFamily = familyCitiesUnique.reduce((s, city) => s + (cityAlertData[city]?.alerts || 0), 0)
+  const shelterMinutesFamily = familyCitiesUnique.reduce((s, city) => s + (cityAlertData[city]?.shelterMinutes || 0), 0)
+
+  // תווית תקופה
+  const periodLabels = { today: '24 שעות', yesterday: 'אתמול', week: '7 ימים', sinceWar: 'מהמלחמה' }
+  const periodLabel = periodLabels[period] || '24 שעות'
 
   function formatShelterTime(minutes) {
     if (minutes === 0) return 'ללא אזעקות'
@@ -128,8 +134,8 @@ export default function MapScreen() {
     return `${Math.floor(minutes / 60)}ש' ${minutes % 60}ד'`
   }
 
-  const shelterTimeLabelUser = !todayLoaded ? 'טוען...' : !currentUserCity ? 'הגדר מיקום' : formatShelterTime(shelterMinutesUser)
-  const shelterTimeLabelFamily = !todayLoaded ? 'טוען...' : formatShelterTime(shelterMinutesFamily)
+  const shelterTimeLabelUser = loading ? 'טוען...' : !currentUserCity ? 'הגדר מיקום' : formatShelterTime(shelterMinutesUser)
+  const shelterTimeLabelFamily = loading ? 'טוען...' : formatShelterTime(shelterMinutesFamily)
 
   const handleInlineLocationSelect = (personId, locationData) => {
     saveLocations({ ...locations, [personId]: locationData })
@@ -443,12 +449,13 @@ export default function MapScreen() {
         setEditingId={setEditingId}
         handleInlineLocationSelect={handleInlineLocationSelect}
         setShowEdit={setShowEdit}
-        totalAlertsToday={totalAlertsToday}
-        totalAlertsTodayFamily={totalAlertsTodayFamily}
+        alertsUser={alertsUser}
+        alertsFamily={alertsFamily}
         currentUserCity={currentUserCity}
-        todayLoaded={todayLoaded}
+        loading={loading}
         shelterTimeLabelUser={shelterTimeLabelUser}
         shelterTimeLabelFamily={shelterTimeLabelFamily}
+        periodLabel={periodLabel}
         securityLevel={securityLevel}
       />
 
