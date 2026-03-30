@@ -4,7 +4,7 @@ import { useUser } from '../App'
 import { familyMembers, grandchildren, alertLevelConfig, WAR_START_DATE } from '../data/familyData'
 import { LOCALITIES, localityCoords, SPECIAL_BASE, DEFAULT_LOCATION } from '../data/israeliLocalities'
 import { getStatus } from '../data/statusConfig'
-import { fetchCurrentAlert, fetchAlertsByPeriod } from '../services/pikudHaoref'
+import { fetchCurrentAlert, fetchAlertsByPeriod, fetchMeta } from '../services/pikudHaoref'
 import { PERIODS, levelColors, levelRadius, calcSecurityLevel, formatDate, getHebrewDateParts, formatHebrewDate } from '../utils/mapUtils'
 import InlineLocationPicker from '../components/map/InlineLocationPicker'
 import EditLocationsModal from '../components/map/EditLocationsModal'
@@ -27,6 +27,7 @@ export default function MapScreen() {
   const [todayData,    setTodayData]    = useState({})
   const [todayLoaded,  setTodayLoaded]  = useState(false)
   const [editingId,    setEditingId]    = useState(null)
+  const [dataMeta,     setDataMeta]     = useState(null)
   const pollRef = useRef(null)
 
   const now = new Date()
@@ -50,9 +51,11 @@ export default function MapScreen() {
   useEffect(() => {
     fetchAlertsByPeriod('today').then(result => {
       const { data } = result
-      console.log('📋 נתוני פיקוד העורף - היום:', data)
       setTodayData(data)
       setTodayLoaded(true)
+    })
+    fetchMeta().then(meta => {
+      if (meta) setDataMeta(meta)
     })
   }, [])
 
@@ -83,7 +86,6 @@ export default function MapScreen() {
     }
   }
 
-  // מיפוי עוברים לאמא שלהם — העוברון תמיד צמוד למיקום האמא
   const motherMap = {}
   grandchildren.filter(c => c.unborn).forEach(baby => {
     const motherName = baby.parents?.split(/\s*ו/)[0]?.trim()
@@ -111,24 +113,28 @@ export default function MapScreen() {
   const familyAlertCities = new Set(allPeople.filter(p => p.city).map(p => p.city))
   const totalAlerts = [...familyAlertCities].reduce((s, city) => s + (cityAlertData[city]?.alerts || 0), 0)
 
-  // ── נתונים לפי התקופה הנבחרת (היום/אתמול/שבוע/מלחמה) ──
+  // ── נתונים לפי התקופה הנבחרת ──
   const currentUserCity = currentUser ? (locations[currentUser.id]?.city || null) : null
   const familyCitiesUnique = [...new Set(allPeople.filter(p => p.city).map(p => p.city))]
 
-  // אזעקות ומ"מד לפי תקופה — עבור המשתמש
   const alertsUser = currentUserCity ? (cityAlertData[currentUserCity]?.alerts || 0) : 0
   const shelterMinutesUser = currentUserCity ? (cityAlertData[currentUserCity]?.shelterMinutes || 0) : 0
 
-  // אזעקות ומ"מד לפי תקופה — עבור כל המשפחה
   const alertsFamily = familyCitiesUnique.reduce((s, city) => s + (cityAlertData[city]?.alerts || 0), 0)
   const shelterMinutesFamily = familyCitiesUnique.reduce((s, city) => s + (cityAlertData[city]?.shelterMinutes || 0), 0)
 
-  // מדד בטחון לפי העיר של המשתמש הנוכחי
   const securityLevel = calcSecurityLevel(alertsUser, !loading && todayLoaded)
 
   // תווית תקופה
-  const periodLabels = { today: '24 שעות', yesterday: 'אתמול', week: '7 ימים', sinceWar: 'מהמלחמה' }
+  const periodLabels = { today: '24 שעות', twoDays: '48 שעות', all: 'כל הנתונים' }
   const periodLabel = periodLabels[period] || '24 שעות'
+
+  // תווית טווח נתונים עבור "כל הנתונים"
+  let dataRangeLabel = ''
+  if (period === 'all' && dataMeta?.dataRange?.oldest) {
+    const oldest = new Date(dataMeta.dataRange.oldest)
+    dataRangeLabel = `מאז ${oldest.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })}`
+  }
 
   function formatShelterTime(minutes) {
     if (minutes === 0) return 'ללא אזעקות'
@@ -144,7 +150,6 @@ export default function MapScreen() {
     setEditingId(null)
   }
 
-  // תאריך עברי עם אותיות
   const hebrewParts = getHebrewDateParts(now)
   const hebrewDateStr = formatHebrewDate(now)
 
@@ -217,7 +222,6 @@ export default function MapScreen() {
         </div>
       )}
 
-      {/* כפתור מקלט */}
       {currentUser && (
         <button
           onClick={() => toggleShelter(currentUser.id, !shelter[currentUser.id]?.active)}
@@ -239,7 +243,6 @@ export default function MapScreen() {
         </button>
       )}
 
-      {/* תאריך + ברכות */}
       <div style={{
         padding: '8px 14px', background: '#f8fafc',
         borderBottom: '1px solid #e2e8f0', flexShrink: 0,
@@ -353,7 +356,6 @@ export default function MapScreen() {
               ...kids.filter(c => c.lat && c.lng),
             ]
             for (const p of allWithCoords) {
-              // מפתח נפרד למבוגרים ונכדים — כך שתמיד יהיו סמנים נפרדים
               const type = p.isGrandchild ? 'kid' : 'adult'
               const key = `${type}_${p.lat.toFixed(4)},${p.lng.toFixed(4)}`
               if (!grouped[key]) grouped[key] = { lat: p.lat, lng: p.lng, people: [], isKidGroup: p.isGrandchild }
@@ -365,14 +367,12 @@ export default function MapScreen() {
               const count = people.length
               const hasMilitary = people.some(p => p.military && !p.isGrandchild)
 
-              // נכדים = כתום, חיילים = ירוק, מבוגרים = כחול
               const fillColor = anyInShelter ? '#dc2626'
                 : isKidGroup ? '#f59e0b'
                 : hasMilitary ? '#16a34a'
                 : '#3b82f6'
               const radius = anyInShelter ? 12 : count > 1 ? 10 : 7
 
-              // הזזה קטנה לנכדים כשהם באותו מיקום כמבוגרים
               const offsetLat = isKidGroup ? lat + 0.003 : lat
               const offsetLng = isKidGroup ? lng + 0.003 : lng
 
@@ -459,6 +459,7 @@ export default function MapScreen() {
         shelterTimeLabelFamily={shelterTimeLabelFamily}
         periodLabel={periodLabel}
         securityLevel={securityLevel}
+        dataRangeLabel={dataRangeLabel}
       />
 
       {showEdit && (

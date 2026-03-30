@@ -3,7 +3,7 @@ import { alertLevelConfig } from '../../data/familyData'
 import { getStatus } from '../../data/statusConfig'
 import InlineLocationPicker from './InlineLocationPicker'
 
-export default function FamilyList({ members, kids, cityAlertData, shelter, photos, statuses, editingId, setEditingId, handleInlineLocationSelect, setShowEdit, alertsUser, alertsFamily, currentUserCity, loading, shelterTimeLabelUser, shelterTimeLabelFamily, periodLabel, securityLevel }) {
+export default function FamilyList({ members, kids, cityAlertData, shelter, photos, statuses, editingId, setEditingId, handleInlineLocationSelect, setShowEdit, alertsUser, alertsFamily, currentUserCity, loading, shelterTimeLabelUser, shelterTimeLabelFamily, periodLabel, securityLevel, dataRangeLabel }) {
   const [viewMode, setViewMode] = useState('user') // 'user' = המיקום שלי, 'family' = כל המשפחה
 
   const isFamily = viewMode === 'family'
@@ -62,6 +62,11 @@ export default function FamilyList({ members, kids, cityAlertData, shelter, phot
         ))}
       </div>
 
+      {dataRangeLabel && (
+        <div style={{ textAlign: 'center', fontSize: 10, color: '#94a3b8', marginBottom: 10, fontWeight: 600 }}>
+          📊 {dataRangeLabel}
+        </div>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>מצב בטחוני לפי בני משפחה</div>

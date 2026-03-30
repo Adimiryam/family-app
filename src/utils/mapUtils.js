@@ -1,14 +1,12 @@
 import { LOCALITIES } from '../data/israeliLocalities'
-import { WAR_START_DATE } from '../data/familyData'
 
 export const LOCATIONS_KEY = 'familyapp_locations'
 export const LOCALITIES_SORTED = [...LOCALITIES].sort((a, b) => a.name.localeCompare(b.name, 'he'))
 
 export const PERIODS = [
-  { key: 'today',    label: 'היום',              icon: '📅' },
-  { key: 'yesterday',label: 'אתמול',             icon: '📅' },
-  { key: 'week',     label: '7 ימים',            icon: '🗓️' },
-  { key: 'sinceWar', label: `מ-${WAR_START_DATE}`, icon: '⚔️' },
+  { key: 'today',    label: '24 שעות',           icon: '📅' },
+  { key: 'twoDays',  label: '48 שעות',           icon: '📅' },
+  { key: 'all',      label: 'כל הנתונים',        icon: '📊' },
 ]
 export const levelColors = { low: '#16a34a', medium: '#d97706', high: '#dc2626', critical: '#7c0000' }
 export const levelRadius = { low: 12, medium: 18, high: 24, critical: 32 }

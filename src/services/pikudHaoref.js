@@ -38,13 +38,6 @@ function calcLevel(n) {
 /**
  * זמן שהייה בממ"ד לפי סוג איום (בדקות).
  * פיקוד העורף מנחה להישאר בממ"ד כ-10 דקות לאחר אזעקת טילים.
- * threat values from Tzeva Adom API:
- *   0 = טילים/רקטות
- *   1 = חדירת כלי טיס עוין
- *   3 = חדירת מחבלים
- *   4 = רעידת אדמה (לא ממ"ד — יציאה למרחב פתוח)
- *   5 = חומרים מסוכנים
- *   6 = צונאמי
  */
 function shelterTimeForThreat(threat) {
   const t = Number(threat)
@@ -55,24 +48,18 @@ function shelterTimeForThreat(threat) {
 
 /**
  * Flatten nested tzevaadom format into flat alert items.
- * Input:  [{id, alerts: [{time, cities: ['a','b'], threat}]}]
- * Output: [{data: 'a, b', time, threat}]
- * Also handles already-flat items (oref format).
  */
 function flattenAlerts(rawList) {
   const flat = []
   for (const item of rawList) {
-    // Already flat — oref format with data string
     if (item.data && typeof item.data === 'string') {
       flat.push(item)
       continue
     }
-    // Already flat — has cities array directly
     if (item.cities && Array.isArray(item.cities) && !item.alerts) {
       flat.push({ ...item, data: item.cities.join(', ') })
       continue
     }
-    // Nested tzevaadom format — has alerts array with sub-items
     if (item.alerts && Array.isArray(item.alerts)) {
       for (const sub of item.alerts) {
         if (sub.cities && Array.isArray(sub.cities)) {
@@ -83,7 +70,6 @@ function flattenAlerts(rawList) {
       }
       continue
     }
-    // Fallback — try name field
     if (item.name) {
       flat.push({ ...item, data: item.name })
     }
@@ -92,12 +78,10 @@ function flattenAlerts(rawList) {
 }
 
 export function buildCityMap(rawList) {
-  // Flatten first in case we get nested tzevaadom data
   const items = flattenAlerts(rawList)
   const cityData = {}
   for (const item of items) {
     if (!item.data) continue
-    // דלג על תרגילים
     if (item.isDrill) continue
     const cities = String(item.data).split(/,\s*|;\s*/)
     const shelterTime = shelterTimeForThreat(item.threat)
@@ -124,26 +108,10 @@ function fmtDate(d) {
   ].join('.')
 }
 
-function getDateRange(period) {
-  const now = new Date()
-  if (period === 'yesterday') {
-    const yd = new Date(now - 86400000)
-    return { from: fmtDate(yd), to: fmtDate(yd) }
-  }
-  if (period === 'week') {
-    return { from: fmtDate(new Date(now - 6 * 86400000)), to: fmtDate(now) }
-  }
-  if (period === 'sinceWar') {
-    return { from: '28.02.2026', to: fmtDate(now) }
-  }
-  return null
-}
-
 // ────────────────────────────────────────────────────────────
 // שליפות מרובות מקורות
 // ────────────────────────────────────────────────────────────
 
-// שליפה מ-GitHub raw (ענף alerts-data)
 async function fetchGitHub(filename) {
   try {
     const ts = Date.now()
@@ -156,7 +124,6 @@ async function fetchGitHub(filename) {
   } catch { return null }
 }
 
-// שליפה מ-Tzeva Adom API (נגיש גלובלית)
 async function fetchTzevaAdom() {
   try {
     const r = await fetch(TZEVA_ADOM_HISTORY, {
@@ -166,12 +133,10 @@ async function fetchTzevaAdom() {
     const data = await r.json()
     const items = Array.isArray(data) ? data : (data?.alerts || data?.data || null)
     if (!Array.isArray(items)) return null
-    // Flatten nested format to flat oref-like items
     return flattenAlerts(items)
   } catch { return null }
 }
 
-// שליפה מקבצים סטטיים (public/data/)
 async function fetchStatic(filename) {
   try {
     const r = await fetch(`${BASE}data/${filename}`, { cache: 'no-cache' })
@@ -181,7 +146,6 @@ async function fetchStatic(filename) {
   } catch { return null }
 }
 
-// שליפה דרך CORS proxy
 async function fetchProxy(url) {
   for (const proxy of CORS_PROXIES) {
     try {
@@ -198,7 +162,6 @@ async function fetchProxy(url) {
   return null
 }
 
-// שמירה/שליפה מ-localStorage
 function saveToLS(period, rawList, source) {
   try {
     const entry = { data: rawList, source, savedAt: Date.now() }
@@ -218,12 +181,24 @@ function loadFromLS(period, maxAgeMs = 3600000) {
 }
 
 // ────────────────────────────────────────────────────────────
+// שליפת מטא-דאטה (טווח נתונים)
+// ────────────────────────────────────────────────────────────
+export async function fetchMeta() {
+  try {
+    const ts = Date.now()
+    const r = await fetch(`${GITHUB_RAW}/meta.json?t=${ts}`, {
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!r.ok) return null
+    return await r.json()
+  } catch { return null }
+}
+
+// ────────────────────────────────────────────────────────────
 // API ציבורי
 // ────────────────────────────────────────────────────────────
 
-/** אזעקה פעילה עכשיו, או null */
 export async function fetchCurrentAlert() {
-  // GitHub cache
   try {
     const ts = Date.now()
     const r = await fetch(`${GITHUB_RAW}/current.json?t=${ts}`, {
@@ -235,7 +210,6 @@ export async function fetchCurrentAlert() {
     }
   } catch { /* continue */ }
 
-  // CORS proxy
   try {
     const data = await fetchProxy(OREF_CURRENT)
     if (data && data?.data?.length) return data
@@ -245,15 +219,14 @@ export async function fetchCurrentAlert() {
 }
 
 /**
- * נתוני אזעקות לפי תקופה: today / yesterday / week / sinceWar
+ * נתוני אזעקות לפי תקופה: today / twoDays / all
  * מחזיר { data: { [cityName]: { alerts, shelterMinutes, level } }, source }
  */
 export async function fetchAlertsByPeriod(period) {
   const fileMap = {
-    today:     'today.json',
-    yesterday: 'yesterday.json',
-    week:      'week.json',
-    sinceWar:  'sincewar.json',
+    today:    'today.json',
+    twoDays:  'twodays.json',
+    all:      'all.json',
   }
   const filename = fileMap[period]
   if (!filename) return { data: {}, source: 'empty' }
@@ -266,7 +239,7 @@ export async function fetchAlertsByPeriod(period) {
   }
 
   // ── שלב 2: Tzeva Adom API (נגיש גלובלית) ────────────────
-  if (period === 'today') {
+  if (period === 'today' || period === 'twoDays') {
     try {
       const tzevaData = await fetchTzevaAdom()
       if (tzevaData !== null) {
@@ -277,24 +250,15 @@ export async function fetchAlertsByPeriod(period) {
   }
 
   // ── שלב 3: CORS proxy לנתונים חיים מ-oref ────────────────
-  try {
-    let liveData = null
-
-    if (period === 'today') {
-      liveData = await fetchProxy(OREF_HISTORY)
-    } else {
-      const range = getDateRange(period)
-      if (range) {
-        const url = `${OREF_RANGE}?lang=he&fromDate=${range.from}&toDate=${range.to}&mode=0`
-        liveData = await fetchProxy(url)
+  if (period === 'today') {
+    try {
+      const liveData = await fetchProxy(OREF_HISTORY)
+      if (Array.isArray(liveData)) {
+        if (liveData.length > 0) saveToLS(period, liveData, 'live')
+        return { data: liveData.length > 0 ? buildCityMap(liveData) : {}, source: 'live' }
       }
-    }
-
-    if (Array.isArray(liveData)) {
-      if (liveData.length > 0) saveToLS(period, liveData, 'live')
-      return { data: liveData.length > 0 ? buildCityMap(liveData) : {}, source: 'live' }
-    }
-  } catch { /* continue */ }
+    } catch { /* continue */ }
+  }
 
   // ── שלב 4: static cache (public/data/) ───────────────────
   const staticData = await fetchStatic(filename)
