@@ -32,16 +32,13 @@ jobs:
           fi
           mkdir -p data
 
-      - name: Fetch alerts from multiple sources
+      - name: Fetch and accumulate alerts
         run: |
           node -e "
           const fs = require('fs');
 
-          // ── Sources ────────────────────────────────────────────
           const TZEVA_ADOM_HISTORY = 'https://api.tzevaadom.co.il/alerts-history';
-          const OREF_CURRENT  = 'https://www.oref.org.il/warningMessages/alert/Alerts.json';
-          const OREF_HISTORY  = 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json';
-          const OREF_RANGE    = 'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx';
+          const OREF_CURRENT = 'https://www.oref.org.il/warningMessages/alert/Alerts.json';
 
           const PROXIES = [
             url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
@@ -69,55 +66,80 @@ jobs:
           async function fetchWithProxy(url) {
             const direct = await tryFetch(url, { headers: OREF_HEADERS });
             if (direct) { console.log('DIRECT OK:', url.split('?')[0]); return direct; }
-            console.log('DIRECT FAIL:', url.split('?')[0]);
             for (const proxy of PROXIES) {
               const data = await tryFetch(proxy(url), { timeout: 15000 });
               if (data) { console.log('PROXY OK:', url.split('?')[0]); return data; }
             }
-            console.log('ALL PROXIES FAILED:', url.split('?')[0]);
             return null;
           }
 
-          function dt(d) {
-            return [String(d.getDate()).padStart(2,'0'), String(d.getMonth()+1).padStart(2,'0'), d.getFullYear()].join('.');
-          }
-
-          // Flatten nested tzevaadom format into oref-compatible flat array
-          // Input:  [{id, alerts: [{time, cities: ['a','b'], threat, isDrill}]}]
-          // Output: [{data: 'a, b', alertDate: '...', time, threat}]
+          // Flatten nested tzevaadom format
           function flattenTzeva(items) {
             if (!Array.isArray(items)) return [];
             const flat = [];
             for (const group of items) {
-              const subAlerts = group.alerts || group.data || [];
-              if (!Array.isArray(subAlerts)) {
-                // Already flat item — normalize
-                if (group.cities && Array.isArray(group.cities)) {
-                  flat.push({ data: group.cities.join(', '), time: group.time, threat: group.threat });
-                } else if (group.data && typeof group.data === 'string') {
-                  flat.push(group);
+              const subAlerts = group.alerts;
+              if (Array.isArray(subAlerts)) {
+                for (const a of subAlerts) {
+                  if (a.cities && Array.isArray(a.cities)) {
+                    flat.push({
+                      data: a.cities.join(', '),
+                      alertDate: a.time ? new Date(a.time * 1000).toISOString() : '',
+                      time: a.time,
+                      threat: a.threat,
+                      isDrill: a.isDrill || false,
+                    });
+                  }
                 }
-                continue;
-              }
-              for (const alert of subAlerts) {
-                if (alert.cities && Array.isArray(alert.cities)) {
-                  const dateStr = alert.time ? new Date(alert.time * 1000).toISOString() : '';
-                  flat.push({
-                    data: alert.cities.join(', '),
-                    alertDate: dateStr,
-                    time: alert.time,
-                    threat: alert.threat,
-                    isDrill: alert.isDrill || false,
-                  });
-                }
+              } else if (group.data && typeof group.data === 'string') {
+                flat.push(group);
+              } else if (group.cities && Array.isArray(group.cities)) {
+                flat.push({ data: group.cities.join(', '), time: group.time, threat: group.threat });
               }
             }
             return flat;
           }
 
+          // Load existing accumulated data
+          function loadFile(path) {
+            try {
+              if (fs.existsSync(path)) {
+                const d = JSON.parse(fs.readFileSync(path, 'utf8'));
+                return Array.isArray(d) ? d : [];
+              }
+            } catch {}
+            return [];
+          }
+
+          // Merge new alerts into existing, deduplicate by time
+          function mergeAlerts(existing, fresh) {
+            const seen = new Set();
+            const merged = [];
+            for (const item of [...fresh, ...existing]) {
+              const key = (item.time || '') + '|' + (item.data || '').slice(0, 60);
+              if (seen.has(key)) continue;
+              seen.add(key);
+              merged.push(item);
+            }
+            // Sort by time descending (newest first)
+            merged.sort((a, b) => (b.time || 0) - (a.time || 0));
+            return merged;
+          }
+
+          // Filter alerts by time range
+          function filterByRange(alerts, fromTs, toTs) {
+            return alerts.filter(a => {
+              const t = a.time || 0;
+              return t >= fromTs && t <= toTs;
+            });
+          }
+
           const now = new Date();
-          const yd = new Date(now - 864e5);
-          const wk = new Date(now - 6 * 864e5);
+          const nowTs = Math.floor(now.getTime() / 1000);
+          const dayAgoTs = nowTs - 86400;
+          const twoDaysAgoTs = nowTs - 2 * 86400;
+          const weekAgoTs = nowTs - 7 * 86400;
+          const warStartTs = Math.floor(new Date('2026-02-28T00:00:00Z').getTime() / 1000);
 
           (async () => {
             console.log('=== Fetching alerts at', now.toISOString(), '===');
@@ -128,71 +150,63 @@ jobs:
             fs.writeFileSync('data/current.json', JSON.stringify(hasCurrent ? cur : null));
             console.log('current:', hasCurrent ? 'ACTIVE ALERT' : 'no alert');
 
-            // ── Tzeva Adom alerts-history (globally accessible!) ─
-            let tzevaFlat = [];
+            // ── Fetch fresh data from Tzeva Adom ─────────────────
+            let freshAlerts = [];
             try {
-              console.log('Trying Tzeva Adom API...');
-              const tzevaRaw = await tryFetch(TZEVA_ADOM_HISTORY, { timeout: 15000 });
-              if (tzevaRaw) {
-                console.log('TZEVA ADOM raw sample:', JSON.stringify(tzevaRaw).slice(0, 300));
-                const rawItems = Array.isArray(tzevaRaw) ? tzevaRaw : (tzevaRaw.alerts || tzevaRaw.data || []);
-                tzevaFlat = flattenTzeva(rawItems);
-                console.log('TZEVA ADOM flattened:', tzevaFlat.length, 'alert records');
-                if (tzevaFlat.length > 0) {
-                  console.log('Sample flat item:', JSON.stringify(tzevaFlat[0]));
-                }
-              } else {
-                console.log('TZEVA ADOM: no data returned');
+              console.log('Fetching Tzeva Adom API...');
+              const raw = await tryFetch(TZEVA_ADOM_HISTORY, { timeout: 15000 });
+              if (raw) {
+                const items = Array.isArray(raw) ? raw : (raw.alerts || raw.data || []);
+                freshAlerts = flattenTzeva(items);
+                console.log('Tzeva Adom: got', freshAlerts.length, 'fresh alerts');
               }
-            } catch(e) { console.log('TZEVA ADOM ERROR:', e.message); }
+            } catch(e) { console.log('Tzeva Adom error:', e.message); }
 
-            // ── Today (last 24h) ─────────────────────────────────
-            let todayArr = [];
-            if (tzevaFlat.length > 0) {
-              todayArr = tzevaFlat;
-              console.log('today: using flattened tzeva adom data,', todayArr.length, 'records');
-            } else {
-              const hist = await fetchWithProxy(OREF_HISTORY);
-              todayArr = Array.isArray(hist) ? hist : [];
-              console.log('today: oref,', todayArr.length, 'records');
-            }
-            fs.writeFileSync('data/today.json', JSON.stringify(todayArr));
+            // ── Load existing accumulated data ───────────────────
+            const existingAll = loadFile('data/all.json');
+            console.log('Existing accumulated alerts:', existingAll.length);
 
-            // ── Yesterday ────────────────────────────────────────
-            const y = await fetchWithProxy(
-              OREF_RANGE + '?lang=he&fromDate=' + dt(yd) + '&toDate=' + dt(yd) + '&mode=0'
-            );
-            const yesterdayArr = Array.isArray(y) ? y : [];
-            fs.writeFileSync('data/yesterday.json', JSON.stringify(yesterdayArr));
-            console.log('yesterday:', yesterdayArr.length, 'records');
+            // ── Merge fresh + existing ───────────────────────────
+            const allAlerts = mergeAlerts(existingAll, freshAlerts);
+            console.log('After merge:', allAlerts.length, 'total alerts');
 
-            // ── Week ─────────────────────────────────────────────
-            const w = await fetchWithProxy(
-              OREF_RANGE + '?lang=he&fromDate=' + dt(wk) + '&toDate=' + dt(now) + '&mode=0'
-            );
-            const weekArr = Array.isArray(w) ? w : [];
-            fs.writeFileSync('data/week.json', JSON.stringify(weekArr));
-            console.log('week:', weekArr.length, 'records');
+            // Keep max 30 days of data (avoid infinite growth)
+            const thirtyDaysAgoTs = nowTs - 30 * 86400;
+            const trimmed = allAlerts.filter(a => (a.time || 0) >= thirtyDaysAgoTs);
+            console.log('After trimming to 30 days:', trimmed.length);
 
-            // ── Since war start ──────────────────────────────────
-            const sw = await fetchWithProxy(
-              OREF_RANGE + '?lang=he&fromDate=28.02.2026&toDate=' + dt(now) + '&mode=0'
-            );
-            const sinceWarArr = Array.isArray(sw) ? sw : [];
-            fs.writeFileSync('data/sincewar.json', JSON.stringify(sinceWarArr));
-            console.log('sincewar:', sinceWarArr.length, 'records');
+            // ── Save accumulated data ────────────────────────────
+            fs.writeFileSync('data/all.json', JSON.stringify(trimmed));
+
+            // ── Split by periods ─────────────────────────────────
+            const todayAlerts = filterByRange(trimmed, dayAgoTs, nowTs);
+            const yesterdayAlerts = filterByRange(trimmed, twoDaysAgoTs, dayAgoTs);
+            const weekAlerts = filterByRange(trimmed, weekAgoTs, nowTs);
+            const sinceWarAlerts = filterByRange(trimmed, warStartTs, nowTs);
+
+            fs.writeFileSync('data/today.json', JSON.stringify(todayAlerts));
+            fs.writeFileSync('data/yesterday.json', JSON.stringify(yesterdayAlerts));
+            fs.writeFileSync('data/week.json', JSON.stringify(weekAlerts));
+            fs.writeFileSync('data/sincewar.json', JSON.stringify(sinceWarAlerts));
+
+            console.log('today:', todayAlerts.length);
+            console.log('yesterday:', yesterdayAlerts.length);
+            console.log('week:', weekAlerts.length);
+            console.log('sinceWar:', sinceWarAlerts.length);
 
             // ── Metadata ─────────────────────────────────────────
+            const oldest = trimmed.length > 0 ? new Date((trimmed[trimmed.length-1].time || 0) * 1000).toISOString() : null;
+            const newest = trimmed.length > 0 ? new Date((trimmed[0].time || 0) * 1000).toISOString() : null;
+
             fs.writeFileSync('data/meta.json', JSON.stringify({
               lastUpdate: now.toISOString(),
-              sources: {
-                tzevaadom: tzevaFlat.length || 'failed',
-              },
+              totalAccumulated: trimmed.length,
+              dataRange: { oldest, newest },
               counts: {
-                today: todayArr.length,
-                yesterday: yesterdayArr.length,
-                week: weekArr.length,
-                sinceWar: sinceWarArr.length,
+                today: todayAlerts.length,
+                yesterday: yesterdayAlerts.length,
+                week: weekAlerts.length,
+                sinceWar: sinceWarAlerts.length,
               }
             }, null, 2));
 
