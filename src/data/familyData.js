@@ -3,6 +3,7 @@
 // ============================================================
 
 export const familyMembers = [
+  { id: 17, name: 'שובי בארי', role: 'אחיינית', military: false, emoji: '👩'   },
   { id: 1,  name: 'נועם',      role: 'אבא',      military: false, emoji: '👨‍🦳' },
   { id: 2,  name: 'יעל',      role: 'אמא',      military: false, emoji: '👩‍🦳' },
   { id: 3,  name: 'רועי',      role: 'אח',       military: false, emoji: '👨'   },
@@ -19,19 +20,18 @@ export const familyMembers = [
   { id: 14, name: 'יוסף',     role: 'גיס',      military: false, emoji: '👨'   },
   { id: 15, name: 'אלישע',    role: 'צבא',      military: true,  emoji: '🪖'   },
   { id: 16, name: 'טליה',     role: 'צבא',      military: true,  emoji: '🪖'   },
-  { id: 17, name: 'שובי בארי', role: 'אחיינית', military: false, emoji: '👩'   },
 ]
 
 export const grandchildren = [
-  { id: 104, name: 'עברי בן ציון', emoji: '👦', parents: 'רועי וצביה'  },
-  { id: 109, name: 'דרור',         emoji: '👧', parents: 'רועי וצביה'  },
-  { id: 105, name: 'שגיא',         emoji: '👦', parents: 'בועז וצפיה'  },
-  { id: 110, name: 'שחר',          emoji: '👧', parents: 'בועז וצפיה'  },
-  { id: 102, name: 'דריה',         emoji: '👧', parents: 'עינת ורז'    },
-  { id: 103, name: 'שיר',          emoji: '👧', parents: 'עינת ורז'    },
-  { id: 106, name: 'עומר',         emoji: '👧', parents: 'עינת ורז'    },
-  { id: 107, name: 'אלה',          emoji: '👧', parents: 'עטרה ויוסף'  },
-  { id: 108, name: 'נווה',         emoji: '👧', parents: 'יהב ועמית'   },
+  { id: 104, name: 'עברי',            emoji: '👦', parents: 'רועי וצביה'  },
+  { id: 109, name: 'דרור',            emoji: '👧', parents: 'רועי וצביה'  },
+  { id: 105, name: 'שגיא',            emoji: '👦', parents: 'בועז וצפיה'  },
+  { id: 110, name: 'שחר',             emoji: '👧', parents: 'בועז וצפיה'  },
+  { id: 102, name: 'דריה',            emoji: '👧', parents: 'עינת ורז'    },
+  { id: 103, name: 'שיר ציון',        emoji: '👧', parents: 'עינת ורז'    },
+  { id: 106, name: 'עומר',            emoji: '👧', parents: 'עינת ורז'    },
+  { id: 107, name: 'אלה',             emoji: '👧', parents: 'עטרה ויוסף'  },
+  { id: 108, name: 'נווה',            emoji: '👧', parents: 'יהב ועמית'   },
   { id: 201, name: 'העוברון של עינת', emoji: '🤰', parents: 'עינת ורז', unborn: true, dueDate: '2026-09-10' },
   { id: 202, name: 'העוברון של עטרה', emoji: '🤰', parents: 'עטרה ויוסף', unborn: true, dueDate: '2026-05-07' },
 ]
