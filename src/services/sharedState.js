@@ -76,6 +76,13 @@ export function saveSharedPhotosDebounced(photos) {
   photosSaveTimer = setTimeout(() => doSave(PHOTOS_FILE, { photos, updatedAt: new Date().toISOString() }, 'photosSha'), 3000)
 }
 
+// שמירת תמונות מיידית (ללא debounce) — לדחיפה ראשונית לענן
+export function saveSharedPhotosImmediate(photos) {
+  if (!TOKEN) { console.warn('[sharedState] no token — cannot save photos'); return }
+  console.log('[sharedState] immediate photo save, keys:', Object.keys(photos).length)
+  doSave(PHOTOS_FILE, { photos, updatedAt: new Date().toISOString() }, 'photosSha')
+}
+
 const shas = { fileSha: null, photosSha: null }
 
 async function doSave(file, data, shaKey, retry = 0) {
@@ -114,7 +121,7 @@ async function doSave(file, data, shaKey, retry = 0) {
       method: 'PUT',
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(30000),
     })
 
     if (r.ok) {
@@ -124,7 +131,8 @@ async function doSave(file, data, shaKey, retry = 0) {
       shas[shaKey] = null
       await doSave(file, data, shaKey, retry + 1)
     } else {
-      console.warn(`[sharedState] ${file} save failed:`, r.status)
+      const text = await r.text().catch(() => '')
+      console.warn(`[sharedState] ${file} save failed:`, r.status, text)
     }
   } catch (e) {
     console.warn(`[sharedState] ${file} save error:`, e.message)
