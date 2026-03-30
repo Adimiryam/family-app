@@ -11,7 +11,7 @@ import AchievementsScreen from './screens/AchievementsScreen'
 import LoginScreen from './screens/LoginScreen'
 import { familyMembers } from './data/familyData'
 import TopBar from './components/TopBar'
-import { loadSharedState, loadSharedPhotos, saveSharedStateDebounced, saveSharedPhotosDebounced, saveSharedPhotosImmediate } from './services/sharedState'
+import { loadSharedState, loadSharedPhotos, saveSharedStateDebounced, saveSharedStateImmediate, saveSharedPhotosDebounced, saveSharedPhotosImmediate } from './services/sharedState'
 
 export const UserContext = createContext(null)
 export function useUser() { return useContext(UserContext) }
@@ -171,7 +171,7 @@ export default function App() {
     }
   }, [])
 
-  // ── כיבוי אוטומטי של מקלט אחרי 10 דקות ───────────────────
+  // ── כיבוי אוטומטי של מקלט אחרי 10 דקות ───────────────────────
   useEffect(() => {
     const checkInterval = setInterval(() => {
       const now = Date.now()
@@ -198,16 +198,22 @@ export default function App() {
         setShelterHistory(currentHistory)
         try { localStorage.setItem('familyapp_shelter', JSON.stringify(currentShelter)) } catch {}
         try { localStorage.setItem('familyapp_shelter_history', JSON.stringify(currentHistory)) } catch {}
-        saveSharedStateDebounced({ ...stateRef.current, shelter: currentShelter, shelterHistory: currentHistory })
+        // שמירה מיידית לענן — מקלט הוא קריטי
+        saveSharedStateImmediate({ ...stateRef.current, shelter: currentShelter, shelterHistory: currentHistory })
       }
     }, 30000)
 
     return () => clearInterval(checkInterval)
   }, [])
 
-  // ── helpers — שליחה לענן ─────────────────────────────────
+  // ── helpers — שליחה לענן ─────────────────────────────────────
   function syncToCloud(overrides = {}) {
     saveSharedStateDebounced({ ...stateRef.current, ...overrides })
+  }
+
+  // שמירה מיידית לענן — למקלט ודברים קריטיים
+  function syncToCloudImmediate(overrides = {}) {
+    saveSharedStateImmediate({ ...stateRef.current, ...overrides })
   }
 
   function syncPhotosToCloud(updatedPhotos) {
@@ -265,7 +271,8 @@ export default function App() {
     }
     setShelter(updated)
     localStorage.setItem('familyapp_shelter', JSON.stringify(updated))
-    syncToCloud({ shelter: updated, shelterHistory: newHistory })
+    // שמירה מיידית לענן — מקלט הוא קריטי, לא debounce!
+    syncToCloudImmediate({ shelter: updated, shelterHistory: newHistory })
   }
 
   const savePhoto = (memberId, base64) => {

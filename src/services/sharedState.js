@@ -103,6 +103,14 @@ export function saveSharedStateDebounced(state) {
   saveTimer = setTimeout(() => doSave(STATE_FILE, state, 'fileSha'), 2000)
 }
 
+// שמירת מצב מיידית (ללא debounce) — למקלט ודברים קריטיים
+export function saveSharedStateImmediate(state) {
+  if (!TOKEN) { console.warn('[sharedState] no token — cannot save state'); return }
+  if (saveTimer) clearTimeout(saveTimer) // מבטל debounce ממתין אם יש
+  console.log('[sharedState] immediate state save')
+  doSave(STATE_FILE, state, 'fileSha')
+}
+
 let photosSaveTimer = null
 
 export function saveSharedPhotosDebounced(photos) {
