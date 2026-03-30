@@ -3,7 +3,7 @@
  * אירועים, הודעות קיר, הישגים ופרופילים ב-GitHub
  * כך שכל בני המשפחה רואים את אותם נתונים.
  *
- * קריאה: GitHub raw + API fallback (ללא אימות, מהיר)
+ * קריאה: GitHub API עם PAT (תמיד טרי, 5000 req/hr) + raw fallback
  * כתיבה: GitHub Contents API עם PAT (מוטמע בזמן build)
  */
 
@@ -25,24 +25,15 @@ const API_BASE = `https://api.github.com/repos/${OWNER}/${REPO}/contents`
 const _t = import.meta.env.VITE_GT || ''
 const TOKEN = _t ? _t.split('').reverse().join('') : ''
 
-// ── קריאה גנרית (עם fallback ל-API) ─────────────────────
+// ── קריאה גנרית (API ראשי עם טוקן, raw כ-fallback) ─────
 async function loadFromGitHub(file) {
-  // נסיון 1: GitHub raw (מהיר, אבל cache של עד 5 דק')
+  // נסיון 1: GitHub API עם טוקן (תמיד טרי, 5000 req/hr)
   try {
-    const r = await fetch(`${RAW_BASE}/${file}?t=${Date.now()}`, {
-      signal: AbortSignal.timeout(6000),
-    })
-    if (r.ok) {
-      const data = await r.json()
-      if (data && typeof data === 'object') return data
-    }
-  } catch { /* continue to fallback */ }
-
-  // נסיון 2: GitHub API (ללא cache, אבל מוגבל ל-60 בקשות/שעה)
-  try {
+    const headers = { Accept: 'application/vnd.github.v3+json' }
+    if (TOKEN) headers.Authorization = `Bearer ${TOKEN}`
     const r = await fetch(`${API_BASE}/${file}?ref=${BRANCH}`, {
       signal: AbortSignal.timeout(8000),
-      headers: { Accept: 'application/vnd.github.v3+json' },
+      headers,
     })
     if (r.ok) {
       const meta = await r.json()
@@ -51,6 +42,17 @@ async function loadFromGitHub(file) {
         const data = JSON.parse(json)
         if (data && typeof data === 'object') return data
       }
+    }
+  } catch { /* continue to fallback */ }
+
+  // נסיון 2: GitHub raw (מהיר אבל CDN cache של עד 5 דק')
+  try {
+    const r = await fetch(`${RAW_BASE}/${file}?t=${Date.now()}`, {
+      signal: AbortSignal.timeout(6000),
+    })
+    if (r.ok) {
+      const data = await r.json()
+      if (data && typeof data === 'object') return data
     }
   } catch { /* give up */ }
 
