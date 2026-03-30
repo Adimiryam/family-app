@@ -32,7 +32,7 @@ export default function App() {
     } catch { return {} }
   })
 
-  // ── היסטוריית ממד: { [memberId]: { date: 'YYYY-MM-DD', minutes: number } } ──
+  // ── היסטוריית מקלט: { [memberId]: { date: 'YYYY-MM-DD', minutes: number } } ──
   const [shelterHistory, setShelterHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem('familyapp_shelter_history') || '{}') } catch { return {} }
   })
@@ -53,14 +53,14 @@ export default function App() {
   })
 
   // ── ref לגישה למצב העדכני מתוך callbacks ──────────────────
-  const stateRef = useRef({ locations: {}, shelter: {}, statuses: {} })
+  const stateRef = useRef({ locations: {}, shelter: {}, statuses: {}, shelterHistory: {} })
   useEffect(() => {
-    stateRef.current = { locations, shelter, statuses }
-  }, [locations, shelter, statuses])
+    stateRef.current = { locations, shelter, statuses, shelterHistory }
+  }, [locations, shelter, statuses, shelterHistory])
 
   // ── סנכרון ענן — טעינה בעלייה + polling כל 30 שניות ────────
   useEffect(() => {
-    // טעינה ראשונית: מצב משותף (מיקומים + מקלט + סטטוס)
+    // טעינה ראשונית: מצב משותף (מיקומים + מקלט + סטטוסים + היסטוריית מקלט)
     loadSharedState().then(shared => {
       if (!shared) {
         const local = stateRef.current
@@ -83,6 +83,11 @@ export default function App() {
         const merged = { ...stateRef.current.statuses, ...shared.statuses }
         setStatuses(merged)
         try { localStorage.setItem('familyapp_statuses', JSON.stringify(merged)) } catch {}
+      }
+      if (shared.shelterHistory && Object.keys(shared.shelterHistory).length > 0) {
+        const merged = { ...stateRef.current.shelterHistory, ...shared.shelterHistory }
+        setShelterHistory(merged)
+        try { localStorage.setItem('familyapp_shelter_history', JSON.stringify(merged)) } catch {}
       }
     })
 
@@ -140,6 +145,13 @@ export default function App() {
         setStatuses(prev => {
           const merged = { ...prev, ...shared.statuses }
           try { localStorage.setItem('familyapp_statuses', JSON.stringify(merged)) } catch {}
+          return merged
+        })
+      }
+      if (shared.shelterHistory) {
+        setShelterHistory(prev => {
+          const merged = { ...prev, ...shared.shelterHistory }
+          try { localStorage.setItem('familyapp_shelter_history', JSON.stringify(merged)) } catch {}
           return merged
         })
       }
@@ -222,7 +234,7 @@ export default function App() {
     }
     setShelter(updated)
     localStorage.setItem('familyapp_shelter', JSON.stringify(updated))
-    syncToCloud({ shelter: updated })
+    syncToCloud({ shelter: updated, shelterHistory: newHistory })
   }
 
   const savePhoto = (memberId, base64) => {

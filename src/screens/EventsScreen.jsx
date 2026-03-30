@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useUser } from '../App'
 import { initialEvents } from '../data/familyData'
+import { loadSharedEvents, saveSharedEventsImmediate } from '../services/sharedState'
 
 const STORAGE_KEY = 'familyapp_events'
 
@@ -28,10 +29,60 @@ function useEvents() {
       return (saved ? JSON.parse(saved) : initialEvents).map(normalizeEvent)
     } catch { return initialEvents.map(normalizeEvent) }
   })
-  const save = (updated) => {
+
+  const eventsRef = useRef(events)
+  eventsRef.current = events
+
+  const save = useCallback((updated) => {
     setEvents(updated)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-  }
+    // סנכרון לענן
+    saveSharedEventsImmediate(updated)
+  }, [])
+
+  // טעינה ראשונית מהענן + מיזוג
+  useEffect(() => {
+    loadSharedEvents().then(shared => {
+      if (!shared || !shared.events) {
+        // ענן ריק — דוחפים מקומי לענן
+        const local = eventsRef.current
+        if (local && local.length > 0) {
+          console.log('[Events] cloud empty, pushing local:', local.length)
+          saveSharedEventsImmediate(local)
+        }
+        return
+      }
+      const cloudEvents = shared.events.map(normalizeEvent)
+      const local = eventsRef.current
+      const cloudIds = new Set(cloudEvents.map(e => e.id))
+      const localOnly = local.filter(e => !cloudIds.has(e.id))
+      const merged = [...localOnly, ...cloudEvents]
+      if (localOnly.length > 0) {
+        console.log('[Events] found local-only items, pushing merged:', localOnly.length, 'new')
+        saveSharedEventsImmediate(merged)
+      }
+      setEvents(merged)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+    }).catch(e => console.warn('[Events] cloud load error:', e.message))
+
+    // polling כל 30 שניות
+    const interval = setInterval(async () => {
+      try {
+        const shared = await loadSharedEvents()
+        if (!shared || !shared.events) return
+        const cloudEvents = shared.events.map(normalizeEvent)
+        const local = eventsRef.current
+        const cloudIds = new Set(cloudEvents.map(e => e.id))
+        const localOnly = local.filter(e => !cloudIds.has(e.id))
+        const merged = [...localOnly, ...cloudEvents]
+        setEvents(merged)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+      } catch {}
+    }, 30000)
+
+    return () => clearInterval(interval)
+  }, [])
+
   return [events, save]
 }
 
@@ -198,7 +249,7 @@ function TasksEditModal({ tasks, onClose, onSave }) {
   const moveUp = (index) => {
     if (index === 0) return
     const newDraft = [...draft]
-    [newDraft[index - 1], newDraft[index]] = [newDraft[index], newDraft[index - 1]]
+    ;[newDraft[index - 1], newDraft[index]] = [newDraft[index], newDraft[index - 1]]
     setDraft(newDraft)
   }
 
@@ -206,7 +257,7 @@ function TasksEditModal({ tasks, onClose, onSave }) {
   const moveDown = (index) => {
     if (index === draft.length - 1) return
     const newDraft = [...draft]
-    [newDraft[index], newDraft[index + 1]] = [newDraft[index + 1], newDraft[index]]
+    ;[newDraft[index], newDraft[index + 1]] = [newDraft[index + 1], newDraft[index]]
     setDraft(newDraft)
   }
 
@@ -283,7 +334,7 @@ function EventDetail({ event, currentUser, onBack, onSave, onDelete, events, onR
   const setRsvp = (attend) => {
     onSave({
       ...event,
-      attending:    attend
+      attending: attend
         ? [...(event.attending || []).filter(n => n !== currentUser?.name), currentUser?.name]
         : (event.attending || []).filter(n => n !== currentUser?.name),
       notAttending: !attend

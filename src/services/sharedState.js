@@ -1,5 +1,6 @@
 /**
- * שירות מצב משותף — שומר מיקומים, מקלט, סטטוסים, תמונות והצעות ב-GitHub
+ * שירות מצב משותף — שומר מיקומים, מקלט, סטטוסים, תמונות, הצעות,
+ * אירועים, הודעות קיר, הישגים ופרופילים ב-GitHub
  * כך שכל בני המשפחה רואים את אותם נתונים.
  *
  * קריאה: GitHub raw + API fallback (ללא אימות, מהיר)
@@ -9,9 +10,13 @@
 const OWNER = 'Adimiryam'
 const REPO  = 'family-app'
 const BRANCH = 'alerts-data'
-const STATE_FILE    = 'data/shared-state.json'
-const PHOTOS_FILE   = 'data/shared-photos.json'
-const REQUESTS_FILE = 'data/shared-requests.json'
+const STATE_FILE        = 'data/shared-state.json'
+const PHOTOS_FILE       = 'data/shared-photos.json'
+const REQUESTS_FILE     = 'data/shared-requests.json'
+const EVENTS_FILE       = 'data/shared-events.json'
+const MESSAGES_FILE     = 'data/shared-messages.json'
+const ACHIEVEMENTS_FILE = 'data/shared-achievements.json'
+const PROFILES_FILE     = 'data/shared-profiles.json'
 const RAW_BASE = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}`
 const API_BASE = `https://api.github.com/repos/${OWNER}/${REPO}/contents`
 
@@ -67,6 +72,26 @@ export async function loadSharedRequests() {
   return loadFromGitHub(REQUESTS_FILE)
 }
 
+// ── קריאת אירועים משותפים ──────────────────────────────
+export async function loadSharedEvents() {
+  return loadFromGitHub(EVENTS_FILE)
+}
+
+// ── קריאת הודעות קיר משותפות ───────────────────────────
+export async function loadSharedMessages() {
+  return loadFromGitHub(MESSAGES_FILE)
+}
+
+// ── קריאת הישגים משותפים ───────────────────────────────
+export async function loadSharedAchievements() {
+  return loadFromGitHub(ACHIEVEMENTS_FILE)
+}
+
+// ── קריאת פרופילים משותפים ──────────────────────────────
+export async function loadSharedProfiles() {
+  return loadFromGitHub(PROFILES_FILE)
+}
+
 // ── כתיבה (עם debounce) ──────────────────────────────────
 let saveTimer = null
 
@@ -105,7 +130,75 @@ export function saveSharedRequestsImmediate(requests) {
   doSave(REQUESTS_FILE, { requests, updatedAt: new Date().toISOString() }, 'requestsSha')
 }
 
-const shas = { fileSha: null, photosSha: null, requestsSha: null }
+// ── אירועים ──────────────────────────────────────────────
+let eventsSaveTimer = null
+
+export function saveSharedEventsDebounced(events) {
+  if (!TOKEN) return
+  if (eventsSaveTimer) clearTimeout(eventsSaveTimer)
+  eventsSaveTimer = setTimeout(() => doSave(EVENTS_FILE, { events, updatedAt: new Date().toISOString() }, 'eventsSha'), 2000)
+}
+
+export function saveSharedEventsImmediate(events) {
+  if (!TOKEN) { console.warn('[sharedState] no token — cannot save events'); return }
+  console.log('[sharedState] immediate events save, count:', events.length)
+  doSave(EVENTS_FILE, { events, updatedAt: new Date().toISOString() }, 'eventsSha')
+}
+
+// ── הודעות קיר ───────────────────────────────────────────
+let messagesSaveTimer = null
+
+export function saveSharedMessagesDebounced(messages) {
+  if (!TOKEN) return
+  if (messagesSaveTimer) clearTimeout(messagesSaveTimer)
+  messagesSaveTimer = setTimeout(() => doSave(MESSAGES_FILE, { messages, updatedAt: new Date().toISOString() }, 'messagesSha'), 2000)
+}
+
+export function saveSharedMessagesImmediate(messages) {
+  if (!TOKEN) { console.warn('[sharedState] no token — cannot save messages'); return }
+  console.log('[sharedState] immediate messages save, count:', messages.length)
+  doSave(MESSAGES_FILE, { messages, updatedAt: new Date().toISOString() }, 'messagesSha')
+}
+
+// ── הישגים ───────────────────────────────────────────────
+let achievementsSaveTimer = null
+
+export function saveSharedAchievementsDebounced(achievements) {
+  if (!TOKEN) return
+  if (achievementsSaveTimer) clearTimeout(achievementsSaveTimer)
+  achievementsSaveTimer = setTimeout(() => doSave(ACHIEVEMENTS_FILE, { achievements, updatedAt: new Date().toISOString() }, 'achievementsSha'), 2000)
+}
+
+export function saveSharedAchievementsImmediate(achievements) {
+  if (!TOKEN) { console.warn('[sharedState] no token — cannot save achievements'); return }
+  console.log('[sharedState] immediate achievements save, count:', achievements.length)
+  doSave(ACHIEVEMENTS_FILE, { achievements, updatedAt: new Date().toISOString() }, 'achievementsSha')
+}
+
+// ── פרופילים ─────────────────────────────────────────────
+let profilesSaveTimer = null
+
+export function saveSharedProfilesDebounced(profiles) {
+  if (!TOKEN) return
+  if (profilesSaveTimer) clearTimeout(profilesSaveTimer)
+  profilesSaveTimer = setTimeout(() => doSave(PROFILES_FILE, { profiles, updatedAt: new Date().toISOString() }, 'profilesSha'), 2000)
+}
+
+export function saveSharedProfilesImmediate(profiles) {
+  if (!TOKEN) { console.warn('[sharedState] no token — cannot save profiles'); return }
+  console.log('[sharedState] immediate profiles save')
+  doSave(PROFILES_FILE, { profiles, updatedAt: new Date().toISOString() }, 'profilesSha')
+}
+
+const shas = {
+  fileSha: null,
+  photosSha: null,
+  requestsSha: null,
+  eventsSha: null,
+  messagesSha: null,
+  achievementsSha: null,
+  profilesSha: null,
+}
 
 async function doSave(file, data, shaKey, retry = 0) {
   if (!TOKEN || retry > 2) return

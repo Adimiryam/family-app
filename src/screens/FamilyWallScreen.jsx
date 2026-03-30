@@ -1,7 +1,69 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useUser } from '../App'
+import { loadSharedMessages, saveSharedMessagesImmediate } from '../services/sharedState'
 
+const STORAGE_KEY = 'familyapp_messages'
 const MESSAGE_COLORS = ['#ec4899', '#3b82f6', '#16a34a', '#7c3aed', '#f59e0b', '#dc2626', '#14b8a6', '#eab308']
+
+// ────────────────────────────────────────────────────────────
+// hook עם סנכרון ענן
+// ────────────────────────────────────────────────────────────
+function useMessages() {
+  const [messages, setMessages] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
+  })
+
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+
+  const save = useCallback((updated) => {
+    setMessages(updated)
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)) } catch {}
+    saveSharedMessagesImmediate(updated)
+  }, [])
+
+  useEffect(() => {
+    loadSharedMessages().then(shared => {
+      if (!shared || !shared.messages) {
+        const local = messagesRef.current
+        if (local && local.length > 0) {
+          console.log('[Messages] cloud empty, pushing local:', local.length)
+          saveSharedMessagesImmediate(local)
+        }
+        return
+      }
+      const cloudMessages = shared.messages
+      const local = messagesRef.current
+      const cloudIds = new Set(cloudMessages.map(m => m.id))
+      const localOnly = local.filter(m => !cloudIds.has(m.id))
+      const merged = [...localOnly, ...cloudMessages]
+      if (localOnly.length > 0) {
+        console.log('[Messages] found local-only items, pushing merged:', localOnly.length, 'new')
+        saveSharedMessagesImmediate(merged)
+      }
+      setMessages(merged)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+    }).catch(e => console.warn('[Messages] cloud load error:', e.message))
+
+    const interval = setInterval(async () => {
+      try {
+        const shared = await loadSharedMessages()
+        if (!shared || !shared.messages) return
+        const cloudMessages = shared.messages
+        const local = messagesRef.current
+        const cloudIds = new Set(cloudMessages.map(m => m.id))
+        const localOnly = local.filter(m => !cloudIds.has(m.id))
+        const merged = [...localOnly, ...cloudMessages]
+        setMessages(merged)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+      } catch {}
+    }, 30000)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  return [messages, save]
+}
 
 // ────────────────────────────────────────────────────────────
 // מודל הוספת הודעה
@@ -173,16 +235,8 @@ function MessageCard({ message, currentUser, onLike, onReply, onDelete }) {
 // ────────────────────────────────────────────────────────────
 export default function FamilyWallScreen() {
   const { currentUser } = useUser()
-
-  const [messages, setMessages] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('familyapp_messages') || '[]') } catch { return [] }
-  })
+  const [messages, saveMessages] = useMessages()
   const [showMessageModal, setShowMessageModal] = useState(false)
-
-  const saveMessages = (updated) => {
-    setMessages(updated)
-    try { localStorage.setItem('familyapp_messages', JSON.stringify(updated)) } catch {}
-  }
 
   const handleLikeMessage = (messageId) => {
     const updated = messages.map(m => {

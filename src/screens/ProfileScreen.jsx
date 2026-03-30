@@ -1,7 +1,8 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useUser } from '../App'
 import { cityAlertData, alertLevelConfig } from '../data/familyData'
 import { STATUSES, getStatus } from '../data/statusConfig'
+import { loadSharedProfiles, saveSharedProfilesImmediate } from '../services/sharedState'
 
 const PROFILE_KEY = 'familyapp_profiles'
 
@@ -9,12 +10,62 @@ function useProfile(userId) {
   const [profiles, setProfiles] = useState(() => {
     try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}') } catch { return {} }
   })
+
+  const profilesRef = useRef(profiles)
+  profilesRef.current = profiles
+
   const profile = profiles[userId] || {}
+
   const saveProfile = (updates) => {
-    const updated = { ...profiles, [userId]: { ...profile, ...updates } }
+    const updated = { ...profilesRef.current, [userId]: { ...profile, ...updates } }
     setProfiles(updated)
     localStorage.setItem(PROFILE_KEY, JSON.stringify(updated))
+    // סנכרון לענן
+    saveSharedProfilesImmediate(updated)
   }
+
+  // טעינה ראשונית מהענן
+  useEffect(() => {
+    loadSharedProfiles().then(shared => {
+      if (!shared || !shared.profiles) {
+        // ענן ריק — דוחפים מקומי
+        const local = profilesRef.current
+        if (local && Object.keys(local).length > 0) {
+          console.log('[Profiles] cloud empty, pushing local')
+          saveSharedProfilesImmediate(local)
+        }
+        return
+      }
+      // ממזגים: ענן דורס מקומי (כי יכול להכיל שינויים מיוזרים אחרים)
+      const cloudProfiles = shared.profiles
+      const local = profilesRef.current
+      const merged = { ...local, ...cloudProfiles }
+      // אם יש פרופילים מקומיים שלא בענן — דוחפים חזרה
+      const localKeys = Object.keys(local)
+      const cloudKeys = Object.keys(cloudProfiles)
+      const newLocalKeys = localKeys.filter(k => !cloudKeys.includes(k))
+      if (newLocalKeys.length > 0) {
+        console.log('[Profiles] found local-only profiles, pushing merged:', newLocalKeys.length, 'new')
+        saveSharedProfilesImmediate(merged)
+      }
+      setProfiles(merged)
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(merged))
+    }).catch(e => console.warn('[Profiles] cloud load error:', e.message))
+
+    // polling כל 30 שניות
+    const interval = setInterval(async () => {
+      try {
+        const shared = await loadSharedProfiles()
+        if (!shared || !shared.profiles) return
+        const merged = { ...profilesRef.current, ...shared.profiles }
+        setProfiles(merged)
+        localStorage.setItem(PROFILE_KEY, JSON.stringify(merged))
+      } catch {}
+    }, 30000)
+
+    return () => clearInterval(interval)
+  }, [])
+
   return [profile, saveProfile]
 }
 

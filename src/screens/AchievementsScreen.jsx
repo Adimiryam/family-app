@@ -1,6 +1,69 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useUser } from '../App'
 import { initialAchievements } from '../data/familyData'
+import { loadSharedAchievements, saveSharedAchievementsImmediate } from '../services/sharedState'
+
+const STORAGE_KEY = 'familyapp_achievements'
+
+function useAchievements() {
+  const [achievements, setAchievements] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      return saved ? JSON.parse(saved) : initialAchievements
+    } catch { return initialAchievements }
+  })
+
+  const achievementsRef = useRef(achievements)
+  achievementsRef.current = achievements
+
+  const save = useCallback((updated) => {
+    setAchievements(updated)
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)) } catch {}
+    saveSharedAchievementsImmediate(updated)
+  }, [])
+
+  useEffect(() => {
+    loadSharedAchievements().then(shared => {
+      if (!shared || !shared.achievements) {
+        const local = achievementsRef.current
+        if (local && local.length > 0) {
+          console.log('[Achievements] cloud empty, pushing local:', local.length)
+          saveSharedAchievementsImmediate(local)
+        }
+        return
+      }
+      const cloudAchievements = shared.achievements
+      const local = achievementsRef.current
+      const cloudIds = new Set(cloudAchievements.map(a => a.id))
+      const localOnly = local.filter(a => !cloudIds.has(a.id))
+      const merged = [...localOnly, ...cloudAchievements]
+      if (localOnly.length > 0) {
+        console.log('[Achievements] found local-only items, pushing merged:', localOnly.length, 'new')
+        saveSharedAchievementsImmediate(merged)
+      }
+      setAchievements(merged)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+    }).catch(e => console.warn('[Achievements] cloud load error:', e.message))
+
+    const interval = setInterval(async () => {
+      try {
+        const shared = await loadSharedAchievements()
+        if (!shared || !shared.achievements) return
+        const cloudAchievements = shared.achievements
+        const local = achievementsRef.current
+        const cloudIds = new Set(cloudAchievements.map(a => a.id))
+        const localOnly = local.filter(a => !cloudIds.has(a.id))
+        const merged = [...localOnly, ...cloudAchievements]
+        setAchievements(merged)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
+      } catch {}
+    }, 30000)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  return [achievements, save]
+}
 
 function AchievementModal({ onClose, onSave, currentUser, initial }) {
   const [text, setText] = useState(initial?.text || '')
@@ -36,19 +99,9 @@ function AchievementModal({ onClose, onSave, currentUser, initial }) {
 
 export default function AchievementsScreen() {
   const { currentUser } = useUser()
-  const [achievements, setAchievements] = useState(() => {
-    try {
-      const saved = localStorage.getItem('familyapp_achievements')
-      return saved ? JSON.parse(saved) : initialAchievements
-    } catch { return initialAchievements }
-  })
+  const [achievements, saveAchievements] = useAchievements()
   const [showModal, setShowModal] = useState(false)
   const [editAchievement, setEditAchievement] = useState(null)
-
-  const saveAchievements = (updated) => {
-    setAchievements(updated)
-    try { localStorage.setItem('familyapp_achievements', JSON.stringify(updated)) } catch {}
-  }
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
