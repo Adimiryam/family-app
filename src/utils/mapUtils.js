@@ -13,12 +13,12 @@ export const PERIODS = [
 export const levelColors = { low: '#16a34a', medium: '#d97706', high: '#dc2626', critical: '#7c0000' }
 export const levelRadius = { low: 12, medium: 18, high: 24, critical: 32 }
 
-export function calcSecurityLevel(todayAlertData, dataLoaded) {
-  if (!dataLoaded) return { color: '#94a3b8', bg: '#f1f5f9', label: 'אין מידע', icon: '⚪' }
-  const citiesWithAlerts = Object.values(todayAlertData).filter(d => d.alerts > 0).length
-  if (citiesWithAlerts === 0) return { color: '#16a34a', bg: '#dcfce7', label: 'בטוח',  icon: '🟢' }
-  if (citiesWithAlerts <= 5)  return { color: '#d97706', bg: '#fef3c7', label: 'זהירות', icon: '🟡' }
-  return                             { color: '#dc2626', bg: '#fee2e2', label: 'מוגבר',  icon: '🔴' }
+// מדד בטחון לפי מספר אזעקות בעיר של המשתמש הנוכחי
+export function calcSecurityLevel(userCityAlerts, dataLoaded) {
+  if (!dataLoaded)            return { color: '#94a3b8', bg: '#f1f5f9', label: 'אין מידע', icon: '⚪' }
+  if (userCityAlerts === 0)   return { color: '#16a34a', bg: '#dcfce7', label: 'בטוח',     icon: '🟢' }
+  if (userCityAlerts <= 2)    return { color: '#d97706', bg: '#fef3c7', label: 'זהירות',   icon: '🟡' }
+  return                             { color: '#dc2626', bg: '#fee2e2', label: 'מוגבר',    icon: '🔴' }
 }
 
 export function formatDate(iso) {
