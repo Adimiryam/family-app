@@ -219,13 +219,12 @@ export async function fetchCurrentAlert() {
 }
 
 /**
- * נתוני אזעקות לפי תקופה: today / twoDays / all
+ * נתוני אזעקות לפי תקופה: today / all
  * מחזיר { data: { [cityName]: { alerts, shelterMinutes, level } }, source }
  */
 export async function fetchAlertsByPeriod(period) {
   const fileMap = {
     today:    'today.json',
-    twoDays:  'twodays.json',
     all:      'all.json',
   }
   const filename = fileMap[period]
@@ -239,7 +238,7 @@ export async function fetchAlertsByPeriod(period) {
   }
 
   // ── שלב 2: Tzeva Adom API (נגיש גלובלית) ────────────────
-  if (period === 'today' || period === 'twoDays') {
+  if (period === 'today') {
     try {
       const tzevaData = await fetchTzevaAdom()
       if (tzevaData !== null) {

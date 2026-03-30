@@ -126,7 +126,7 @@ export default function MapScreen() {
   const securityLevel = calcSecurityLevel(alertsUser, !loading && todayLoaded)
 
   // תווית תקופה
-  const periodLabels = { today: '24 שעות', twoDays: '48 שעות', all: 'כל הנתונים' }
+  const periodLabels = { today: '24 שעות', all: 'כל הנתונים' }
   const periodLabel = periodLabels[period] || '24 שעות'
 
   // תווית טווח נתונים עבור "כל הנתונים"
