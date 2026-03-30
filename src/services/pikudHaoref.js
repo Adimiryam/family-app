@@ -178,9 +178,10 @@ export async function fetchAlertsByPeriod(period) {
 
   // ── שלב 1: GitHub raw (ענף alerts-data) ──────────────────
   const gh = await fetchGitHub(filename)
-  if (gh && gh.length > 0) {
-    saveToLS(period, gh, 'github')
-    return { data: buildCityMap(gh), source: 'github' }
+  if (gh !== null) {
+    // הצלחנו לשלוף — גם מערך ריק = אין אזעקות (לא שגיאה)
+    if (gh.length > 0) saveToLS(period, gh, 'github')
+    return { data: gh.length > 0 ? buildCityMap(gh) : {}, source: 'github' }
   }
 
   // ── שלב 2: CORS proxy לנתונים חיים ────────────────────
@@ -197,16 +198,16 @@ export async function fetchAlertsByPeriod(period) {
       }
     }
 
-    if (Array.isArray(liveData) && liveData.length > 0) {
-      saveToLS(period, liveData, 'live')
-      return { data: buildCityMap(liveData), source: 'live' }
+    if (Array.isArray(liveData)) {
+      if (liveData.length > 0) saveToLS(period, liveData, 'live')
+      return { data: liveData.length > 0 ? buildCityMap(liveData) : {}, source: 'live' }
     }
   } catch { /* continue */ }
 
   // ── שלב 3: static cache (public/data/) ───────────────
   const staticData = await fetchStatic(filename)
-  if (staticData && staticData.length > 0) {
-    return { data: buildCityMap(staticData), source: 'cache' }
+  if (staticData !== null) {
+    return { data: staticData.length > 0 ? buildCityMap(staticData) : {}, source: 'cache' }
   }
 
   // ── שלב 4: localStorage cache (עד 6 שעות) ────────────
@@ -215,6 +216,6 @@ export async function fetchAlertsByPeriod(period) {
     return { data: buildCityMap(lsEntry.data), source: 'cached-' + (lsEntry.source || 'local') }
   }
 
-  // ── שלב 5: ריק ──────────────────────────────────
+  // ── שלב 5: הכל נכשל ──────────────────────────────────
   return { data: {}, source: 'unavailable' }
 }
