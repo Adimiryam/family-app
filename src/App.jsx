@@ -99,12 +99,22 @@ export default function App() {
         } catch {}
         return
       }
-      if (Object.keys(shared.photos).length > 0) {
-        setPhotos(prev => {
-          const merged = { ...prev, ...shared.photos }
-          try { localStorage.setItem('familyapp_photos', JSON.stringify(merged)) } catch {}
-          return merged
-        })
+      // ענן לא ריק — ממזגים ענן + מקומי, ואם יש תמונות מקומיות חדשות — דוחפים חזרה
+      const localPhotos = (() => {
+        try { return JSON.parse(localStorage.getItem('familyapp_photos') || '{}') } catch { return {} }
+      })()
+      const merged = { ...localPhotos, ...shared.photos }
+      // בודקים אם יש תמונות מקומיות שלא קיימות בענן
+      const localKeys = Object.keys(localPhotos)
+      const cloudKeys = Object.keys(shared.photos)
+      const newLocalKeys = localKeys.filter(k => !cloudKeys.includes(k))
+      if (newLocalKeys.length > 0) {
+        console.log('[App] found local photos not in cloud, pushing merged:', newLocalKeys.length, 'new keys')
+        saveSharedPhotosImmediate(merged)
+      }
+      if (Object.keys(merged).length > 0) {
+        setPhotos(merged)
+        try { localStorage.setItem('familyapp_photos', JSON.stringify(merged)) } catch {}
       }
     })
 
