@@ -36,6 +36,24 @@ function calcLevel(n) {
 }
 
 /**
+ * זמן שהייה בממ"ד לפי סוג איום (בדקות).
+ * פיקוד העורף מנחה להישאר בממ"ד כ-10 דקות לאחר אזעקת טילים.
+ * threat values from Tzeva Adom API:
+ *   0 = טילים/רקטות
+ *   1 = חדירת כלי טיס עוין
+ *   3 = חדירת מחבלים
+ *   4 = רעידת אדמה (לא ממ"ד — יציאה למרחב פתוח)
+ *   5 = חומרים מסוכנים
+ *   6 = צונאמי
+ */
+function shelterTimeForThreat(threat) {
+  const t = Number(threat)
+  if (t === 4) return 0   // רעידת אדמה — לא נכנסים לממ"ד
+  if (t === 6) return 0   // צונאמי — מתרחקים מהחוף, לא ממ"ד
+  return 10               // טילים, כלי טיס, מחבלים, חומ"ס — 10 דקות בממ"ד
+}
+
+/**
  * Flatten nested tzevaadom format into flat alert items.
  * Input:  [{id, alerts: [{time, cities: ['a','b'], threat}]}]
  * Output: [{data: 'a, b', time, threat}]
@@ -76,18 +94,24 @@ function flattenAlerts(rawList) {
 export function buildCityMap(rawList) {
   // Flatten first in case we get nested tzevaadom data
   const items = flattenAlerts(rawList)
-  const counts = {}
+  const cityData = {}
   for (const item of items) {
     if (!item.data) continue
+    // דלג על תרגילים
+    if (item.isDrill) continue
     const cities = String(item.data).split(/,\s*|;\s*/)
+    const shelterTime = shelterTimeForThreat(item.threat)
     for (const raw of cities) {
       const city = raw.trim()
-      if (city) counts[city] = (counts[city] || 0) + 1
+      if (!city) continue
+      if (!cityData[city]) cityData[city] = { alerts: 0, shelterMinutes: 0 }
+      cityData[city].alerts += 1
+      cityData[city].shelterMinutes += shelterTime
     }
   }
   const result = {}
-  for (const [city, alerts] of Object.entries(counts)) {
-    result[city] = { alerts, shelterMinutes: alerts * 3, level: calcLevel(alerts) }
+  for (const [city, data] of Object.entries(cityData)) {
+    result[city] = { ...data, level: calcLevel(data.alerts) }
   }
   return result
 }
