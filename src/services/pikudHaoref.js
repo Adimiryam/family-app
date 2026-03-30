@@ -1,29 +1,34 @@
 /**
- * שירות פיקוד העורף — 3 שכבות fallback:
- * 1. קבצי JSON סטטיים (GitHub Actions cache, מתעדכן כל 5 דקות)
- * 2. CORS proxy → oref API (עוקף CORS, עובד מהדפדפן)
- * 3. מחזיר {} ריק אם הכל נכשל (לא null — כדי לא להציג "מדומה")
+ * שירות נתוני אזעקות — 4 שכבות fallback:
+ * 1. GitHub raw (ענף alerts-data, מתעדכן ע"י GitHub Actions)
+ * 2. CORS proxy → oref API (ישיר מהדפדפן — עובד מישראל)
+ * 3. static cache (public/data/) כ-fallback
+ * 4. localStorage cache (מהשליפה האחרונה שהצליחה)
  */
 
+const GITHUB_RAW = 'https://raw.githubusercontent.com/Adimiryam/family-app/alerts-data/data'
 const BASE = import.meta.env.BASE_URL
 
-const OREF_HISTORY_URL = 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json'
-const OREF_CURRENT_URL = 'https://www.oref.org.il/warningMessages/alert/Alerts.json'
+const OREF_HISTORY = 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json'
+const OREF_CURRENT = 'https://www.oref.org.il/warningMessages/alert/Alerts.json'
+const OREF_RANGE   = 'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx'
 
-// CORS proxies לגישה ל-oref מהדפדפן
 const CORS_PROXIES = [
-  (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-  (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
 ]
+
+const LS_PREFIX = 'familyapp_alerts_'
 
 // ────────────────────────────────────────────────────────────
 // עזרים
 // ────────────────────────────────────────────────────────────
 
-function calcLevel(alerts) {
-  if (alerts <= 3)  return 'low'
-  if (alerts <= 10) return 'medium'
-  if (alerts <= 25) return 'high'
+function calcLevel(n) {
+  if (n <= 3)  return 'low'
+  if (n <= 10) return 'medium'
+  if (n <= 25) return 'high'
   return 'critical'
 }
 
@@ -44,53 +49,122 @@ export function buildCityMap(rawList) {
   return result
 }
 
-// קריאה מקבצים סטטיים (cache)
-async function fetchStatic(filename) {
+function fmtDate(d) {
+  return [
+    String(d.getDate()).padStart(2, '0'),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    d.getFullYear(),
+  ].join('.')
+}
+
+function getDateRange(period) {
+  const now = new Date()
+  if (period === 'yesterday') {
+    const yd = new Date(now - 86400000)
+    return { from: fmtDate(yd), to: fmtDate(yd) }
+  }
+  if (period === 'week') {
+    return { from: fmtDate(new Date(now - 6 * 86400000)), to: fmtDate(now) }
+  }
+  if (period === 'sinceWar') {
+    return { from: '28.02.2026', to: fmtDate(now) }
+  }
+  return null
+}
+
+// ────────────────────────────────────────────────────────────
+// שליפות מרובות מקורות
+// ────────────────────────────────────────────────────────────
+
+// שליפה מ-GitHub raw (ענף alerts-data)
+async function fetchGitHub(filename) {
   try {
-    const res = await fetch(`${BASE}data/${filename}`, { cache: 'no-cache' })
-    if (!res.ok) return null
-    return await res.json()
+    const ts = Date.now()
+    const r = await fetch(`${GITHUB_RAW}/${filename}?t=${ts}`, {
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!r.ok) return null
+    const data = await r.json()
+    return Array.isArray(data) ? data : null
   } catch { return null }
 }
 
-// קריאה ישירה עם CORS proxy
-async function fetchViaProxy(url) {
-  for (const makeProxy of CORS_PROXIES) {
+// שליפה מקבצים סטטיים (public/data/)
+async function fetchStatic(filename) {
+  try {
+    const r = await fetch(`${BASE}data/${filename}`, { cache: 'no-cache' })
+    if (!r.ok) return null
+    const data = await r.json()
+    return Array.isArray(data) ? data : null
+  } catch { return null }
+}
+
+// שליפה דרך CORS proxy
+async function fetchProxy(url) {
+  for (const proxy of CORS_PROXIES) {
     try {
-      const res = await fetch(makeProxy(url), { signal: AbortSignal.timeout(8000) })
-      if (!res.ok) continue
-      const data = await res.json()
-      if (data) return data
+      const r = await fetch(proxy(url), { signal: AbortSignal.timeout(10000) })
+      if (!r.ok) continue
+      const text = await r.text()
+      if (!text || text === '""' || text === 'null' || text.length < 3) continue
+      try {
+        const data = JSON.parse(text)
+        if (data) return data
+      } catch { continue }
     } catch { continue }
   }
   return null
+}
+
+// שמירה/שליפה מ-localStorage
+function saveToLS(period, rawList, source) {
+  try {
+    const entry = { data: rawList, source, savedAt: Date.now() }
+    localStorage.setItem(LS_PREFIX + period, JSON.stringify(entry))
+  } catch { /* localStorage full or unavailable */ }
+}
+
+function loadFromLS(period, maxAgeMs = 3600000) {
+  try {
+    const raw = localStorage.getItem(LS_PREFIX + period)
+    if (!raw) return null
+    const entry = JSON.parse(raw)
+    if (!entry?.data || !Array.isArray(entry.data)) return null
+    if (Date.now() - (entry.savedAt || 0) > maxAgeMs) return null
+    return entry
+  } catch { return null }
 }
 
 // ────────────────────────────────────────────────────────────
 // API ציבורי
 // ────────────────────────────────────────────────────────────
 
-/** מחזיר אזעקה פעילה עכשיו, או null אם אין */
+/** אזעקה פעילה עכשיו, או null */
 export async function fetchCurrentAlert() {
-  // static cache קודם
-  const cached = await fetchStatic('current.json')
-  if (cached !== undefined && cached !== null) return cached
-  if (cached === null) return null // null = אין אזעקה (שמור בכוונה)
-
-  // fallback: CORS proxy
+  // GitHub cache
   try {
-    const data = await fetchViaProxy(OREF_CURRENT_URL)
-    if (!data) return null
-    const text = typeof data === 'string' ? data.trim() : JSON.stringify(data)
-    if (!text || text === '""') return null
-    const parsed = typeof data === 'string' ? JSON.parse(data) : data
-    return (!parsed?.data?.length) ? null : parsed
-  } catch { return null }
+    const ts = Date.now()
+    const r = await fetch(`${GITHUB_RAW}/current.json?t=${ts}`, {
+      signal: AbortSignal.timeout(5000),
+    })
+    if (r.ok) {
+      const data = await r.json()
+      if (data && data?.data?.length) return data
+    }
+  } catch { /* continue */ }
+
+  // CORS proxy
+  try {
+    const data = await fetchProxy(OREF_CURRENT)
+    if (data && data?.data?.length) return data
+  } catch { /* continue */ }
+
+  return null
 }
 
 /**
- * מחזיר נתוני עיר לפי תקופה: today / yesterday / week / sinceWar
- * תמיד מחזיר אובייקט (לא null) — ריק = אין אזעקות, לא = שגיאה
+ * נתוני אזעקות לפי תקופה: today / yesterday / week / sinceWar
+ * מחזיר { data: { [cityName]: { alerts, shelterMinutes, level } }, source }
  */
 export async function fetchAlertsByPeriod(period) {
   const fileMap = {
@@ -99,24 +173,48 @@ export async function fetchAlertsByPeriod(period) {
     week:      'week.json',
     sinceWar:  'sincewar.json',
   }
-
   const filename = fileMap[period]
   if (!filename) return { data: {}, source: 'empty' }
 
-  // שלב 1: static cache
-  const cached = await fetchStatic(filename)
-  if (Array.isArray(cached) && cached.length > 0) {
-    return { data: buildCityMap(cached), source: 'cache' }
+  // ── שלב 1: GitHub raw (ענף alerts-data) ──────────────────
+  const gh = await fetchGitHub(filename)
+  if (gh && gh.length > 0) {
+    saveToLS(period, gh, 'github')
+    return { data: buildCityMap(gh), source: 'github' }
   }
 
-  // שלב 2: today → נסה CORS proxy לקבלת נתוני 24 שעות אחרונות חיים
-  if (period === 'today') {
-    const live = await fetchViaProxy(OREF_HISTORY_URL)
-    if (Array.isArray(live) && live.length > 0) {
-      return { data: buildCityMap(live), source: 'live' }
+  // ── שלב 2: CORS proxy לנתונים חיים ────────────────────
+  try {
+    let liveData = null
+
+    if (period === 'today') {
+      liveData = await fetchProxy(OREF_HISTORY)
+    } else {
+      const range = getDateRange(period)
+      if (range) {
+        const url = `${OREF_RANGE}?lang=he&fromDate=${range.from}&toDate=${range.to}&mode=0`
+        liveData = await fetchProxy(url)
+      }
     }
+
+    if (Array.isArray(liveData) && liveData.length > 0) {
+      saveToLS(period, liveData, 'live')
+      return { data: buildCityMap(liveData), source: 'live' }
+    }
+  } catch { /* continue */ }
+
+  // ── שלב 3: static cache (public/data/) ───────────────
+  const staticData = await fetchStatic(filename)
+  if (staticData && staticData.length > 0) {
+    return { data: buildCityMap(staticData), source: 'cache' }
   }
 
-  // שלב 3: החזר ריק — נתוני פיקוד העורף נטענו, פשוט אין אזעקות בתקופה זו
-  return { data: {}, source: Array.isArray(cached) ? 'empty' : 'unavailable' }
+  // ── שלב 4: localStorage cache (עד 6 שעות) ────────────
+  const lsEntry = loadFromLS(period, 6 * 3600000)
+  if (lsEntry && lsEntry.data.length > 0) {
+    return { data: buildCityMap(lsEntry.data), source: 'cached-' + (lsEntry.source || 'local') }
+  }
+
+  // ── שלב 5: ריק ──────────────────────────────────
+  return { data: {}, source: 'unavailable' }
 }

@@ -2,7 +2,7 @@ name: Fetch Alert Data
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: הגדרת ענף alerts-data (יוצר אם לא קיים)
+      - name: Setup alerts-data branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -22,80 +22,129 @@ jobs:
           if git show-ref --verify --quiet refs/remotes/origin/alerts-data; then
             git checkout alerts-data
           else
-            echo "ענף alerts-data לא קיים — יוצר אותו"
+            echo "Creating orphan alerts-data branch"
             git checkout --orphan alerts-data
             git rm -rf . --quiet 2>/dev/null || true
           fi
           mkdir -p data
 
-      - name: שליפת נתוני אזעקות עדכניים
+      - name: Fetch alerts via proxy
         run: |
           node -e "
-          const https = require('https');
           const fs = require('fs');
-          const HEADERS = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+
+          const PROXIES = [
+            url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+            url => 'https://corsproxy.io/?' + encodeURIComponent(url),
+            url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+          ];
+
+          const OREF_HEADERS = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Referer': 'https://www.oref.org.il/',
             'X-Requested-With': 'XMLHttpRequest',
-            'Accept': 'application/json, text/javascript, */*; q=0.01',
-            'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept': 'application/json',
           };
-          function get(url) {
-            return new Promise(r => {
-              const req = https.get(url, { headers: HEADERS }, res => {
-                let d = '';
-                res.on('data', c => d += c);
-                res.on('end', () => {
-                  console.log('GET', url.split('?')[0], '→', res.statusCode, '|', d.slice(0,120));
-                  try { r(JSON.parse(d)); } catch { r(null); }
-                });
-              });
-              req.on('error', e => { console.error('ERR', url, e.message); r(null); });
-              req.setTimeout(12000, () => { req.destroy(); r(null); });
-            });
-          }
-          function dt(d) { return [String(d.getDate()).padStart(2,'0'), String(d.getMonth()+1).padStart(2,'0'), d.getFullYear()].join('.'); }
-          const now = new Date(), yd = new Date(now - 864e5), wk = new Date(now - 6*864e5);
-          console.log('Fetching alerts for', dt(now));
-          (async () => {
-            // ── אזעקה פעילה עכשיו ──────────────────────────────────
-            const cur = await get('https://www.oref.org.il/warningMessages/alert/Alerts.json');
-            fs.writeFileSync('data/current.json', JSON.stringify(cur && cur.data && cur.data.length ? cur : null));
 
-            // ── היום: AlertsHistory.json = 24 שעות אחרונות (endpoint מהימן) ──
-            const hist = await get('https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json');
+          async function fetchWithProxy(url) {
+            // Try direct first
+            try {
+              const r = await fetch(url, { headers: OREF_HEADERS, signal: AbortSignal.timeout(10000) });
+              if (r.ok) {
+                const text = await r.text();
+                if (text && text.length > 2) {
+                  const data = JSON.parse(text);
+                  console.log('DIRECT OK:', url.split('?')[0], '|', String(text).slice(0, 80));
+                  return data;
+                }
+              }
+            } catch (e) { console.log('DIRECT FAIL:', url.split('?')[0], e.message); }
+
+            // Try proxies
+            for (const proxy of PROXIES) {
+              try {
+                const proxyUrl = proxy(url);
+                const r = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
+                if (!r.ok) continue;
+                const text = await r.text();
+                if (!text || text.length < 3) continue;
+                const data = JSON.parse(text);
+                console.log('PROXY OK:', url.split('?')[0], '|', String(text).slice(0, 80));
+                return data;
+              } catch (e) { console.log('PROXY FAIL:', e.message); continue; }
+            }
+            console.log('ALL FAILED:', url.split('?')[0]);
+            return null;
+          }
+
+          function dt(d) {
+            return [String(d.getDate()).padStart(2,'0'), String(d.getMonth()+1).padStart(2,'0'), d.getFullYear()].join('.');
+          }
+
+          const now = new Date();
+          const yd = new Date(now - 864e5);
+          const wk = new Date(now - 6 * 864e5);
+
+          (async () => {
+            console.log('=== Fetching alerts at', now.toISOString(), '===');
+
+            // Current alert
+            const cur = await fetchWithProxy('https://www.oref.org.il/warningMessages/alert/Alerts.json');
+            const hasCurrent = cur && cur?.data && cur.data.length > 0;
+            fs.writeFileSync('data/current.json', JSON.stringify(hasCurrent ? cur : null));
+            console.log('current:', hasCurrent ? 'ACTIVE ALERT' : 'no alert');
+
+            // Today (last 24h)
+            const hist = await fetchWithProxy('https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json');
             const todayArr = Array.isArray(hist) ? hist : [];
             fs.writeFileSync('data/today.json', JSON.stringify(todayArr));
-            console.log('today (AlertsHistory):', todayArr.length+' records');
+            console.log('today:', todayArr.length, 'records');
 
-            // ── אתמול ────────────────────────────────────────────
-            const y = await get('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate='+dt(yd)+'&toDate='+dt(yd)+'&mode=0');
+            // Yesterday
+            const y = await fetchWithProxy(
+              'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate=' + dt(yd) + '&toDate=' + dt(yd) + '&mode=0'
+            );
             const yesterdayArr = Array.isArray(y) ? y : [];
-            // fallback: אם אתמול נכשל, נשתמש בhistory הגולמי וניקח רק אתמול
-            if (yesterdayArr.length === 0 && todayArr.length > 0) {
-              const ydStr = dt(yd).split('.').reverse().join('-'); // YYYY-MM-DD
-              const ydData = todayArr.filter(a => a.alertDate && a.alertDate.startsWith(ydStr));
-              fs.writeFileSync('data/yesterday.json', JSON.stringify(ydData));
-              console.log('yesterday (from history fallback):', ydData.length+' records');
-            } else {
-              fs.writeFileSync('data/yesterday.json', JSON.stringify(yesterdayArr));
-              console.log('yesterday:', yesterdayArr.length+' records');
-            }
+            fs.writeFileSync('data/yesterday.json', JSON.stringify(yesterdayArr));
+            console.log('yesterday:', yesterdayArr.length, 'records');
 
-            // ── שבוע ────────────────────────────────────────────
-            const w = await get('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate='+dt(wk)+'&toDate='+dt(now)+'&mode=0');
-            fs.writeFileSync('data/week.json', JSON.stringify(Array.isArray(w)?w:[]));
-            console.log('week:', Array.isArray(w) ? w.length+' records' : 'FAILED (empty)');
+            // Week
+            const w = await fetchWithProxy(
+              'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate=' + dt(wk) + '&toDate=' + dt(now) + '&mode=0'
+            );
+            const weekArr = Array.isArray(w) ? w : [];
+            fs.writeFileSync('data/week.json', JSON.stringify(weekArr));
+            console.log('week:', weekArr.length, 'records');
 
-            // ── מאז תחילת 2026 ──────────────────────────────────
-            const sw = await get('https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate=01.01.2026&toDate='+dt(now)+'&mode=0');
-            fs.writeFileSync('data/sincewar.json', JSON.stringify(Array.isArray(sw)?sw:[]));
-            console.log('sincewar:', Array.isArray(sw) ? sw.length+' records' : 'FAILED (empty)');
+            // Since war start
+            const sw = await fetchWithProxy(
+              'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate=28.02.2026&toDate=' + dt(now) + '&mode=0'
+            );
+            const sinceWarArr = Array.isArray(sw) ? sw : [];
+            fs.writeFileSync('data/sincewar.json', JSON.stringify(sinceWarArr));
+            console.log('sincewar:', sinceWarArr.length, 'records');
+
+            // Metadata
+            fs.writeFileSync('data/meta.json', JSON.stringify({
+              lastUpdate: now.toISOString(),
+              counts: {
+                today: todayArr.length,
+                yesterday: yesterdayArr.length,
+                week: weekArr.length,
+                sinceWar: sinceWarArr.length,
+              }
+            }, null, 2));
+
+            console.log('=== Done ===');
           })().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(0); });
           "
 
       - name: Push data to alerts-data branch
         run: |
           git add data/
-          git diff --staged --quiet || git commit -m "🔄 אזעקות $(date -u '+%H:%M')"
-          git push origin alerts-data || git push --set-upstream origin alerts-data
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "🔄 alerts $(date -u '+%Y-%m-%d %H:%M')"
+            git push origin alerts-data || git push --set-upstream origin alerts-data
+          fi
