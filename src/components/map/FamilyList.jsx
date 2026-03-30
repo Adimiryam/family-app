@@ -4,7 +4,7 @@ import { getStatus } from '../../data/statusConfig'
 import { normalizeCity } from '../../services/pikudHaoref'
 import InlineLocationPicker from './InlineLocationPicker'
 
-export default function FamilyList({ members, kids, cityAlertData, shelter, photos, statuses, editingId, setEditingId, handleInlineLocationSelect, setShowEdit, alertsUser, alertsFamily, currentUserCity, loading, shelterTimeLabelUser, shelterTimeLabelFamily, periodLabel, securityLevel, dataRangeLabel, onScroll, onMemberClick, focusedMemberId, scrollRef, currentUserId }) {
+export default function FamilyList({ members, kids, cityAlertData, shelter, photos, statuses, editingId, setEditingId, handleInlineLocationSelect, setShowEdit, alertsUser, alertsFamily, currentUserCity, loading, shelterTimeLabelUser, shelterTimeLabelFamily, periodLabel, securityLevel, dataRangeLabel, onScroll, onMemberClick, focusedMemberId, scrollRef, currentUserId, isAdmin }) {
   const [viewMode, setViewMode] = useState('user')
 
   const isFamily = viewMode === 'family'
@@ -23,6 +23,7 @@ export default function FamilyList({ members, kids, cityAlertData, shelter, phot
     const isMe      = member.id === currentUserId
     const isEditing = editingId === member.id
     const isFocused = focusedMemberId === member.id
+    const canEdit   = isAdmin
 
     return (
       <div key={member.id}>
@@ -64,7 +65,7 @@ export default function FamilyList({ members, kids, cityAlertData, shelter, phot
               : member.city
                 ? <div style={{ fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
                     <span>📍 {member.city}</span>
-                    {isMe && (
+                    {canEdit && (
                       <button
                         onClick={(e) => { e.stopPropagation(); setEditingId(isEditing ? null : member.id) }}
                         style={{ fontSize: 10, color: '#3b82f6', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '1px 6px', cursor: 'pointer', fontWeight: 700 }}
@@ -78,7 +79,7 @@ export default function FamilyList({ members, kids, cityAlertData, shelter, phot
                       </span>
                     )}
                   </div>
-                : isMe
+                : canEdit
                   ? <button onClick={(e) => { e.stopPropagation(); setEditingId(member.id) }} style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, background: 'none', padding: 0, textDecoration: 'underline', border: 'none', cursor: 'pointer' }}>
                       📍 הגדר מיקום
                     </button>
@@ -93,41 +94,7 @@ export default function FamilyList({ members, kids, cityAlertData, shelter, phot
           }
         </div>
 
-        {/* פרטי מיקום מורחבים בלחיצה */}
-        {isFocused && member.city && !isEditing && (
-          <div style={{
-            background: '#f0f7ff', borderRadius: '0 0 11px 11px',
-            padding: '10px 14px', marginBottom: 7, marginTop: -2,
-            border: '2px solid #3b82f6', borderTop: '1px dashed #93c5fd',
-          }}>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <div style={{ background: 'white', borderRadius: 8, padding: '6px 12px', flex: 1, minWidth: 80, textAlign: 'center' }}>
-                <div style={{ fontSize: 16 }}>🚨</div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: '#dc2626' }}>{cityData.alerts || 0}</div>
-                <div style={{ fontSize: 9, color: '#64748b' }}>אזעקות ב{member.city}</div>
-              </div>
-              <div style={{ background: 'white', borderRadius: 8, padding: '6px 12px', flex: 1, minWidth: 80, textAlign: 'center' }}>
-                <div style={{ fontSize: 16 }}>{cfg.icon}</div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: cfg.color }}>{cfg.label}</div>
-                <div style={{ fontSize: 9, color: '#64748b' }}>רמת סיכון</div>
-              </div>
-              {cityData.shelterMinutes > 0 && (
-                <div style={{ background: 'white', borderRadius: 8, padding: '6px 12px', flex: 1, minWidth: 80, textAlign: 'center' }}>
-                  <div style={{ fontSize: 16 }}>🏠</div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: '#7c3aed' }}>{cityData.shelterMinutes}ד'</div>
-                  <div style={{ fontSize: 9, color: '#64748b' }}>זמן בממ"ד</div>
-                </div>
-              )}
-            </div>
-            {inShelter && (
-              <div style={{ marginTop: 8, background: '#fee2e2', borderRadius: 8, padding: '6px 10px', fontSize: 12, color: '#dc2626', fontWeight: 700, textAlign: 'center' }}>
-                🚨 {member.name} במקלט כרגע!
-              </div>
-            )}
-          </div>
-        )}
-
-        {isEditing && isMe && (
+        {isEditing && canEdit && (
           <div style={{ marginBottom: 7 }}>
             <InlineLocationPicker
               person={member}

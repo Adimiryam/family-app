@@ -60,30 +60,6 @@ function flattenAlerts(rawList) {
   return flat
 }
 
-// ── פרסור תאריך מאיטם אזעקה ──────────────────────────────
-function parseAlertDate(item) {
-  const s = item.time || item.alertDate || item.date || item.timestamp || ''
-  if (!s) return null
-  let d = new Date(s)
-  if (!isNaN(d.getTime())) return d
-  // dd.mm.yyyy format
-  const m = String(s).match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/)
-  if (m) return new Date(+m[3], +m[2]-1, +m[1])
-  return null
-}
-
-// ── סינון לפי טווח ימים ───────────────────────────────────
-function filterByDays(items, days) {
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() - days)
-  cutoff.setHours(0, 0, 0, 0)
-  return items.filter(item => {
-    const d = parseAlertDate(item)
-    if (!d) return true
-    return d >= cutoff
-  })
-}
-
 export function buildCityMap(rawList) {
   const items = flattenAlerts(rawList)
   const cityData = {}
@@ -236,21 +212,14 @@ async function fetchRawAlerts(dataKey) {
 }
 
 /**
- * נתוני אזעקות לפי תקופה: today / week / month / all
+ * נתוני אזעקות לפי תקופה: today / all
  * מחזיר { data: { [cityName]: { alerts, shelterMinutes, level } }, source }
  */
 export async function fetchAlertsByPeriod(period) {
-  // today שולף today.json, כל השאר שולפים all.json
   const dataKey = period === 'today' ? 'today' : 'all'
   const { raw, source } = await fetchRawAlerts(dataKey)
 
   if (raw.length === 0) return { data: {}, source }
 
-  // סינון לפי טווח ימים
-  let filtered = raw
-  if (period === 'week') filtered = filterByDays(raw, 7)
-  else if (period === 'month') filtered = filterByDays(raw, 30)
-  // today ו-all לא מסוננים
-
-  return { data: filtered.length > 0 ? buildCityMap(filtered) : {}, source }
+  return { data: buildCityMap(raw), source }
 }

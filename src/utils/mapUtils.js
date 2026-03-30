@@ -5,8 +5,6 @@ export const LOCALITIES_SORTED = [...LOCALITIES].sort((a, b) => a.name.localeCom
 
 export const PERIODS = [
   { key: 'today',    label: '24 שעות',           icon: '📅' },
-  { key: 'week',     label: 'שבוע',              icon: '📆' },
-  { key: 'month',    label: 'חודש',              icon: '📆' },
   { key: 'all',      label: 'כל הנתונים',        icon: '📊' },
 ]
 export const levelColors = { low: '#16a34a', medium: '#d97706', high: '#dc2626', critical: '#7c0000' }

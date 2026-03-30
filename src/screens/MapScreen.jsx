@@ -37,6 +37,8 @@ function createPhotoIcon(people, photos, shelter) {
 export default function MapScreen() {
   const { currentUser, shelter, toggleShelter, photos, statuses, allMembers, locations: contextLocations, saveLocations: contextSaveLocations } = useUser()
 
+  const isAdmin = currentUser?.id === 5
+
   const [period, setPeriod] = useState('today')
   const [showHeat, setShowHeat] = useState(true)
   const [showFamily, setShowFamily] = useState(true)
@@ -55,7 +57,6 @@ export default function MapScreen() {
   const mapInstanceRef = useRef(null)
   const familyListRef = useRef(null)
   const mapCollapsedRef = useRef(false)
-  const markerRefs = useRef({})
 
   const now = new Date()
 
@@ -102,20 +103,6 @@ export default function MapScreen() {
     }
   }, [])
 
-  // ── פתיחת popup כשמתמקדים בבן משפחה ──────────────────
-  const members = useRef([])
-  const kidsRef = useRef([])
-  useEffect(() => {
-    if (!focusedMemberId) return
-    const allWithCoords = [...members.current, ...kidsRef.current].filter(m => m.lat && m.lng)
-    const member = allWithCoords.find(m => m.id === focusedMemberId)
-    if (!member) return
-    const type = member.isGrandchild ? 'kid' : 'adult'
-    const key = `${type}_${member.lat.toFixed(4)},${member.lng.toFixed(4)}`
-    const timer = setTimeout(() => { markerRefs.current[key]?.openPopup() }, 1200)
-    return () => clearTimeout(timer)
-  }, [focusedMemberId])
-
   const cityAlertData = realData || {}
   const heatCities = LOCALITIES.filter(c => cityAlertData[normalizeCity(c.name)])
   const locations = contextLocations
@@ -143,8 +130,6 @@ export default function MapScreen() {
 
   const membersData = familyMembers.map(m => ({ ...m, ...resolveLocation(locations[m.id]) }))
   const kidsData = grandchildren.filter(c => !c.unborn).map(c => ({ ...c, isGrandchild: true, ...resolveLocation(locations[c.id]) }))
-  members.current = membersData
-  kidsRef.current = kidsData
 
   const allPeople = [
     ...familyMembers.map(m => ({ ...m, ...resolveLocation(locations[m.id]) })),
@@ -163,7 +148,7 @@ export default function MapScreen() {
   const alertsFamily = familyCitiesUnique.reduce((s, nc) => s + (cityAlertData[nc]?.alerts || 0), 0)
   const shelterMinutesFamily = familyCitiesUnique.reduce((s, nc) => s + (cityAlertData[nc]?.shelterMinutes || 0), 0)
   const securityLevel = calcSecurityLevel(alertsUser, !loading && todayLoaded)
-  const periodLabels = { today: '24 שעות', week: 'שבוע', month: 'חודש', all: 'כל הנתונים' }
+  const periodLabels = { today: '24 שעות', all: 'כל הנתונים' }
   const periodLabel = periodLabels[period] || '24 שעות'
 
   let dataRangeLabel = ''
@@ -255,7 +240,9 @@ export default function MapScreen() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={() => setShowEdit(true)} style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 10, padding: '7px 12px', color: 'white', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}>📍 עדכן מיקום</button>
+          {isAdmin && (
+            <button onClick={() => setShowEdit(true)} style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 10, padding: '7px 12px', color: 'white', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}>📍 עדכן מיקום</button>
+          )}
           <div style={{ background: securityLevel.bg, borderRadius: 12, padding: '6px 12px', textAlign: 'center' }}>
             <div style={{ fontSize: 9, color: securityLevel.color, fontWeight: 700 }}>מדד בטחון</div>
             <div style={{ fontSize: 20 }}>{securityLevel.icon}</div>
@@ -299,7 +286,7 @@ export default function MapScreen() {
               const offsetLng = isKidGroup ? lng + 0.003 : lng
               const icon = createPhotoIcon(people, photos, shelter)
               return (
-                <Marker key={groupKey} position={[offsetLat, offsetLng]} icon={icon} ref={el => { if (el) markerRefs.current[groupKey] = el }}>
+                <Marker key={groupKey} position={[offsetLat, offsetLng]} icon={icon}>
                   <Popup>
                     <div style={{ fontFamily: 'Heebo, Arial', direction: 'rtl', textAlign: 'right', fontSize: 13, minWidth: 140 }}>
                       <div style={{ fontWeight: 700, marginBottom: 4 }}>📍 {people[0].city}</div>
@@ -330,9 +317,9 @@ export default function MapScreen() {
         </div>
       )}
 
-      <FamilyList members={membersData} kids={kidsData} cityAlertData={cityAlertData} shelter={shelter} photos={photos} statuses={statuses} editingId={editingId} setEditingId={setEditingId} handleInlineLocationSelect={handleInlineLocationSelect} setShowEdit={setShowEdit} alertsUser={alertsUser} alertsFamily={alertsFamily} currentUserCity={currentUserCity} loading={loading} shelterTimeLabelUser={shelterTimeLabelUser} shelterTimeLabelFamily={shelterTimeLabelFamily} periodLabel={periodLabel} securityLevel={securityLevel} dataRangeLabel={dataRangeLabel} onScroll={handleFamilyScroll} onMemberClick={handleMemberClick} focusedMemberId={focusedMemberId} scrollRef={familyListRef} currentUserId={currentUser?.id} />
+      <FamilyList members={membersData} kids={kidsData} cityAlertData={cityAlertData} shelter={shelter} photos={photos} statuses={statuses} editingId={editingId} setEditingId={setEditingId} handleInlineLocationSelect={handleInlineLocationSelect} setShowEdit={setShowEdit} alertsUser={alertsUser} alertsFamily={alertsFamily} currentUserCity={currentUserCity} loading={loading} shelterTimeLabelUser={shelterTimeLabelUser} shelterTimeLabelFamily={shelterTimeLabelFamily} periodLabel={periodLabel} securityLevel={securityLevel} dataRangeLabel={dataRangeLabel} onScroll={handleFamilyScroll} onMemberClick={handleMemberClick} focusedMemberId={focusedMemberId} scrollRef={familyListRef} currentUserId={currentUser?.id} isAdmin={isAdmin} />
 
-      {showEdit && (
+      {showEdit && isAdmin && (
         <EditLocationsModal
           currentUser={currentUser}
           locations={locations}

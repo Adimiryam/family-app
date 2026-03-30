@@ -94,7 +94,6 @@ export default function App() {
     // טעינה ראשונית: תמונות (קובץ נפרד, כבד יותר)
     loadSharedPhotos().then(shared => {
       if (!shared || !shared.photos) {
-        // ענן ריק — אם יש תמונות מקומיות, דוחפים אותן לענן מיד
         try {
           const localPhotos = JSON.parse(localStorage.getItem('familyapp_photos') || '{}')
           if (Object.keys(localPhotos).length > 0) {
@@ -104,12 +103,10 @@ export default function App() {
         } catch {}
         return
       }
-      // ענן לא ריק — ממזגים ענן + מקומי, ואם יש תמונות מקומיות חדשות — דוחפים חזרה
       const localPhotos = (() => {
         try { return JSON.parse(localStorage.getItem('familyapp_photos') || '{}') } catch { return {} }
       })()
       const merged = { ...localPhotos, ...shared.photos }
-      // בודקים אם יש תמונות מקומיות שלא קיימות בענן
       const localKeys = Object.keys(localPhotos)
       const cloudKeys = Object.keys(shared.photos)
       const newLocalKeys = localKeys.filter(k => !cloudKeys.includes(k))
@@ -172,6 +169,40 @@ export default function App() {
       clearInterval(interval)
       clearInterval(photosInterval)
     }
+  }, [])
+
+  // ── כיבוי אוטומטי של מקלט אחרי 10 דקות ───────────────────
+  useEffect(() => {
+    const checkInterval = setInterval(() => {
+      const now = Date.now()
+      const currentShelter = { ...(stateRef.current.shelter || {}) }
+      const currentHistory = { ...(stateRef.current.shelterHistory || {}) }
+      let changed = false
+
+      for (const [id, s] of Object.entries(currentShelter)) {
+        if (s.active && s.since) {
+          const elapsed = now - new Date(s.since).getTime()
+          if (elapsed >= 10 * 60 * 1000) {
+            changed = true
+            const todayStr = new Date().toISOString().split('T')[0]
+            const mins = Math.max(0, Math.round(elapsed / 60000))
+            const prev = (currentHistory[id]?.date === todayStr) ? (currentHistory[id].minutes || 0) : 0
+            currentHistory[id] = { date: todayStr, minutes: prev + mins }
+            currentShelter[id] = { active: false }
+          }
+        }
+      }
+
+      if (changed) {
+        setShelter(currentShelter)
+        setShelterHistory(currentHistory)
+        try { localStorage.setItem('familyapp_shelter', JSON.stringify(currentShelter)) } catch {}
+        try { localStorage.setItem('familyapp_shelter_history', JSON.stringify(currentHistory)) } catch {}
+        saveSharedStateDebounced({ ...stateRef.current, shelter: currentShelter, shelterHistory: currentHistory })
+      }
+    }, 30000)
+
+    return () => clearInterval(checkInterval)
   }, [])
 
   // ── helpers — שליחה לענן ─────────────────────────────────

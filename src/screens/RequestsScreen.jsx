@@ -4,6 +4,7 @@ import { initialRequests } from '../data/familyData'
 import { loadSharedRequests, saveSharedRequestsImmediate } from '../services/sharedState'
 
 const STORAGE_KEY = 'familyapp_requests'
+const ADMIN_ID = 5
 
 function useRequests() {
   const [requests, setRequests] = useState(() => {
@@ -19,15 +20,12 @@ function useRequests() {
   const save = useCallback((updated) => {
     setRequests(updated)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
-    // סנכרון לענן
     saveSharedRequestsImmediate(updated)
   }, [])
 
-  // טעינה ראשונית מהענן + מיזוג
   useEffect(() => {
     loadSharedRequests().then(shared => {
       if (!shared || !shared.requests) {
-        // ענן ריק — דוחפים מקומי לענן
         const local = requestsRef.current
         if (local && local.length > 0) {
           console.log('[Requests] cloud empty, pushing local:', local.length)
@@ -35,8 +33,6 @@ function useRequests() {
         }
         return
       }
-      // ממזגים: לוקחים את הענן כמקור אמת (כי הוא מכיל שינויים מכל היוזרים)
-      // אבל מוסיפים פריטים מקומיים שלא קיימים בענן
       const cloudRequests = shared.requests
       const local = requestsRef.current
       const cloudIds = new Set(cloudRequests.map(r => r.id))
@@ -50,7 +46,6 @@ function useRequests() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(merged))
     }).catch(e => console.warn('[Requests] cloud load error:', e.message))
 
-    // polling כל 30 שניות
     const interval = setInterval(async () => {
       try {
         const shared = await loadSharedRequests()
@@ -78,11 +73,15 @@ const categoryIcons = {
   'אחר':            '💬',
 }
 
-function RequestCard({ item, currentUser, onSignup, onInterest, onUnsignup, onUninterest, onEdit, onDelete, onMoveUp, onMoveDown }) {
+function RequestCard({ item, currentUser, isAdmin, onSignup, onInterest, onUnsignup, onUninterest, onEdit, onDelete, onMoveUp, onMoveDown, onAddComment }) {
   const isRequest = item.type === 'request'
   const alreadySigned = isRequest
     ? item.signedUp?.includes(currentUser?.name)
     : item.interested?.includes(currentUser?.name)
+
+  const [commentText, setCommentText] = useState('')
+  const [showComments, setShowComments] = useState(false)
+  const comments = item.comments || []
 
   const handleActionClick = () => {
     if (alreadySigned) {
@@ -90,6 +89,17 @@ function RequestCard({ item, currentUser, onSignup, onInterest, onUnsignup, onUn
     } else {
       isRequest ? onSignup(item.id) : onInterest(item.id)
     }
+  }
+
+  const handleSubmitComment = () => {
+    if (!commentText.trim()) return
+    onAddComment(item.id, {
+      id: Date.now(),
+      author: currentUser?.name || 'אנונימי',
+      text: commentText.trim(),
+      createdAt: new Date().toLocaleDateString('he-IL'),
+    })
+    setCommentText('')
   }
 
   return (
@@ -141,28 +151,30 @@ function RequestCard({ item, currentUser, onSignup, onInterest, onUnsignup, onUn
               {item.title}
             </h3>
           </div>
-          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-            <button onClick={() => onMoveUp(item.id)} style={{ width: 30, height: 30, borderRadius: 8, background: '#f1f5f9', color: '#475569', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' }}>⬆️</button>
-            <button onClick={() => onMoveDown(item.id)} style={{ width: 30, height: 30, borderRadius: 8, background: '#f1f5f9', color: '#475569', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' }}>⬇️</button>
-            <button
-              onClick={() => onEdit(item)}
-              style={{
-                width: 30, height: 30, borderRadius: 8,
-                background: '#f1f5f9', color: '#475569',
-                fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: 'none', cursor: 'pointer',
-              }}
-            >✏️</button>
-            <button
-              onClick={() => onDelete(item.id)}
-              style={{
-                width: 30, height: 30, borderRadius: 8,
-                background: '#fef2f2', color: '#dc2626',
-                fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: 'none', cursor: 'pointer',
-              }}
-            >🗑️</button>
-          </div>
+          {isAdmin && (
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <button onClick={() => onMoveUp(item.id)} style={{ width: 30, height: 30, borderRadius: 8, background: '#f1f5f9', color: '#475569', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' }}>⬆️</button>
+              <button onClick={() => onMoveDown(item.id)} style={{ width: 30, height: 30, borderRadius: 8, background: '#f1f5f9', color: '#475569', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' }}>⬇️</button>
+              <button
+                onClick={() => onEdit(item)}
+                style={{
+                  width: 30, height: 30, borderRadius: 8,
+                  background: '#f1f5f9', color: '#475569',
+                  fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: 'none', cursor: 'pointer',
+                }}
+              >✏️</button>
+              <button
+                onClick={() => onDelete(item.id)}
+                style={{
+                  width: 30, height: 30, borderRadius: 8,
+                  background: '#fef2f2', color: '#dc2626',
+                  fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: 'none', cursor: 'pointer',
+                }}
+              >🗑️</button>
+            </div>
+          )}
         </div>
 
         <p style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5, marginBottom: 10 }}>
@@ -222,6 +234,55 @@ function RequestCard({ item, currentUser, onSignup, onInterest, onUnsignup, onUn
               : '⭐ אני מעוניין/ת'
           }
         </button>
+
+        {/* תגובות */}
+        <div style={{ marginTop: 12 }}>
+          <button
+            onClick={() => setShowComments(!showComments)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#64748b', padding: 0 }}
+          >
+            💬 תגובות ({comments.length}) {showComments ? '▲' : '▼'}
+          </button>
+
+          {showComments && (
+            <div style={{ marginTop: 8 }}>
+              {/* רשימת תגובות */}
+              {comments.length > 0 ? (
+                <div style={{ marginBottom: 10 }}>
+                  {comments.map(c => (
+                    <div key={c.id} style={{ background: '#f8fafc', borderRadius: 8, padding: '8px 12px', marginBottom: 6, borderRight: '3px solid #3b82f6' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: '#1e293b' }}>{c.author}</span>
+                        <span style={{ fontSize: 10, color: '#94a3b8' }}>{c.createdAt}</span>
+                      </div>
+                      <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.4, margin: 0 }}>{c.text}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8, textAlign: 'center' }}>אין תגובות עדיין</div>
+              )}
+
+              {/* הוספת תגובה */}
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  value={commentText}
+                  onChange={e => setCommentText(e.target.value)}
+                  placeholder="כתוב/י תגובה..."
+                  onKeyDown={e => { if (e.key === 'Enter') handleSubmitComment() }}
+                  style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: 13, direction: 'rtl' }}
+                />
+                <button
+                  onClick={handleSubmitComment}
+                  disabled={!commentText.trim()}
+                  style={{ padding: '8px 14px', borderRadius: 8, background: commentText.trim() ? '#1e40af' : '#e2e8f0', color: commentText.trim() ? 'white' : '#94a3b8', fontSize: 13, fontWeight: 700, border: 'none', cursor: commentText.trim() ? 'pointer' : 'default', flexShrink: 0 }}
+                >
+                  שלח
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -279,6 +340,7 @@ function ItemModal({ onClose, onSave, currentUser, initial }) {
         author: currentUser?.name || 'אנונימי',
         signedUp: [],
         interested: [],
+        comments: [],
         createdAt: new Date().toLocaleDateString('he-IL'),
       })
     }
@@ -443,6 +505,8 @@ export default function RequestsScreen() {
   const [showModal, setShowModal] = useState(false)
   const [editItem, setEditItem] = useState(null)
 
+  const isAdmin = currentUser?.id === ADMIN_ID
+
   const filtered = tab === 'all' ? requests
     : tab === 'requests' ? requests.filter(r => r.type === 'request')
     : requests.filter(r => r.type === 'offer')
@@ -510,6 +574,14 @@ export default function RequestsScreen() {
     const updated = [...requests]
     ;[updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]]
     setRequests(updated)
+  }
+
+  const addComment = (itemId, comment) => {
+    setRequests(requests.map(r =>
+      r.id === itemId
+        ? { ...r, comments: [...(r.comments || []), comment] }
+        : r
+    ))
   }
 
   return (
@@ -588,6 +660,7 @@ export default function RequestsScreen() {
               key={item.id}
               item={item}
               currentUser={currentUser}
+              isAdmin={isAdmin}
               onSignup={signup}
               onInterest={interest}
               onUnsignup={unsignup}
@@ -596,6 +669,7 @@ export default function RequestsScreen() {
               onDelete={deleteItem}
               onMoveUp={moveUp}
               onMoveDown={moveDown}
+              onAddComment={addComment}
             />
           ))
         )}
