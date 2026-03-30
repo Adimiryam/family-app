@@ -35,20 +35,53 @@ function calcLevel(n) {
   return 'critical'
 }
 
-export function buildCityMap(rawList) {
-  const counts = {}
+/**
+ * Flatten nested tzevaadom format into flat alert items.
+ * Input:  [{id, alerts: [{time, cities: ['a','b'], threat}]}]
+ * Output: [{data: 'a, b', time, threat}]
+ * Also handles already-flat items (oref format).
+ */
+function flattenAlerts(rawList) {
+  const flat = []
   for (const item of rawList) {
-    // Support both oref format (data: "city1, city2") and tzevaadom format (cities: [...])
-    let cities = []
+    // Already flat — oref format with data string
     if (item.data && typeof item.data === 'string') {
-      cities = item.data.split(/,\s*|;\s*/)
-    } else if (item.cities && Array.isArray(item.cities)) {
-      cities = item.cities
-    } else if (item.name) {
-      cities = [item.name]
+      flat.push(item)
+      continue
     }
+    // Already flat — has cities array directly
+    if (item.cities && Array.isArray(item.cities) && !item.alerts) {
+      flat.push({ ...item, data: item.cities.join(', ') })
+      continue
+    }
+    // Nested tzevaadom format — has alerts array with sub-items
+    if (item.alerts && Array.isArray(item.alerts)) {
+      for (const sub of item.alerts) {
+        if (sub.cities && Array.isArray(sub.cities)) {
+          flat.push({ data: sub.cities.join(', '), time: sub.time, threat: sub.threat })
+        } else if (sub.data && typeof sub.data === 'string') {
+          flat.push(sub)
+        }
+      }
+      continue
+    }
+    // Fallback — try name field
+    if (item.name) {
+      flat.push({ ...item, data: item.name })
+    }
+  }
+  return flat
+}
+
+export function buildCityMap(rawList) {
+  // Flatten first in case we get nested tzevaadom data
+  const items = flattenAlerts(rawList)
+  const counts = {}
+  for (const item of items) {
+    if (!item.data) continue
+    const cities = String(item.data).split(/,\s*|;\s*/)
     for (const raw of cities) {
-      const city = (typeof raw === 'string' ? raw : '').trim()
+      const city = raw.trim()
       if (city) counts[city] = (counts[city] || 0) + 1
     }
   }
@@ -108,7 +141,9 @@ async function fetchTzevaAdom() {
     if (!r.ok) return null
     const data = await r.json()
     const items = Array.isArray(data) ? data : (data?.alerts || data?.data || null)
-    return Array.isArray(items) ? items : null
+    if (!Array.isArray(items)) return null
+    // Flatten nested format to flat oref-like items
+    return flattenAlerts(items)
   } catch { return null }
 }
 
