@@ -28,7 +28,9 @@
       "price": "חיבוק ונשיקה",
       "id": 1774885479104,
       "author": "שובי בארי",
-      "signedUp": [],
+      "signedUp": [
+        "נועם"
+      ],
       "interested": [],
       "createdAt": "30.3.2026"
     },
@@ -76,7 +78,17 @@
       "hours": "יום שלם",
       "fullDay": true,
       "numKids": ""
+    },
+    {
+      "id": 3,
+      "type": "offer",
+      "category": "עזרה כללית",
+      "title": "זמין לעזרה עם מעבר דירה 📦",
+      "description": "אם מישהו צריך עזרה עם מעבר דירה, אני זמין בסופי שבוע",
+      "author": "רועי",
+      "interested": [],
+      "createdAt": "2026-03-18"
     }
   ],
-  "updatedAt": "2026-03-30T17:00:27.326Z"
+  "updatedAt": "2026-03-30T17:01:25.377Z"
 }
