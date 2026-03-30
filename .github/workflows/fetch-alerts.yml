@@ -32,19 +32,27 @@ jobs:
           fi
           mkdir -p data
 
-      - name: Fetch alerts via proxy
+      - name: Fetch alerts from multiple sources
         run: |
           node -e "
           const fs = require('fs');
 
-          // CORS proxies for bypassing geo-blocking from GitHub Actions
+          // ── Sources ────────────────────────────────────────────
+          // 1. Tzeva Adom API (globally accessible, not geo-blocked)
+          const TZEVA_ADOM_HISTORY = 'https://api.tzevaadom.co.il/alerts-history';
+
+          // 2. Oref direct (geo-blocked outside Israel)
+          const OREF_CURRENT  = 'https://www.oref.org.il/warningMessages/alert/Alerts.json';
+          const OREF_HISTORY  = 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json';
+          const OREF_RANGE    = 'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx';
+
+          // 3. CORS proxies (fallback for oref)
           const PROXIES = [
             url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
             url => 'https://corsproxy.io/?' + encodeURIComponent(url),
             url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
           ];
 
-          // Direct fetch with oref headers (in case GitHub IP works)
           const OREF_HEADERS = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Referer': 'https://www.oref.org.il/',
@@ -52,39 +60,53 @@ jobs:
             'Accept': 'application/json',
           };
 
-          async function fetchWithProxy(url) {
-            // Try direct first
-            try {
-              const r = await fetch(url, { headers: OREF_HEADERS, signal: AbortSignal.timeout(10000) });
-              if (r.ok) {
-                const text = await r.text();
-                if (text && text.length > 2) {
-                  const data = JSON.parse(text);
-                  console.log('DIRECT OK:', url.split('?')[0], '|', String(text).slice(0, 80));
-                  return data;
-                }
-              }
-            } catch (e) { console.log('DIRECT FAIL:', url.split('?')[0], e.message); }
+          // ── Helpers ────────────────────────────────────────────
 
-            // Try proxies
+          async function tryFetch(url, opts = {}) {
+            try {
+              const r = await fetch(url, { signal: AbortSignal.timeout(opts.timeout || 12000), ...opts });
+              if (!r.ok) return null;
+              const text = await r.text();
+              if (!text || text.length < 2) return null;
+              return JSON.parse(text);
+            } catch (e) { return null; }
+          }
+
+          async function fetchWithProxy(url) {
+            // Direct
+            const direct = await tryFetch(url, { headers: OREF_HEADERS });
+            if (direct) { console.log('DIRECT OK:', url.split('?')[0]); return direct; }
+            console.log('DIRECT FAIL:', url.split('?')[0]);
+
+            // Proxies
             for (const proxy of PROXIES) {
-              try {
-                const proxyUrl = proxy(url);
-                const r = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
-                if (!r.ok) continue;
-                const text = await r.text();
-                if (!text || text.length < 3) continue;
-                const data = JSON.parse(text);
-                console.log('PROXY OK:', url.split('?')[0], '|', String(text).slice(0, 80));
-                return data;
-              } catch (e) { console.log('PROXY FAIL:', e.message); continue; }
+              const data = await tryFetch(proxy(url), { timeout: 15000 });
+              if (data) { console.log('PROXY OK:', url.split('?')[0]); return data; }
             }
-            console.log('ALL FAILED:', url.split('?')[0]);
+            console.log('ALL PROXIES FAILED:', url.split('?')[0]);
             return null;
           }
 
           function dt(d) {
             return [String(d.getDate()).padStart(2,'0'), String(d.getMonth()+1).padStart(2,'0'), d.getFullYear()].join('.');
+          }
+
+          // Normalize tzevaadom format to oref-like format
+          // tzevaadom returns: [{alerts, date, cities: [...], ...}] or similar
+          // oref returns: [{data: 'city1, city2', ...}]
+          function normalizeTzeva(items) {
+            if (!Array.isArray(items)) return null;
+            return items.map(item => {
+              // If already has 'data' field (oref format), pass through
+              if (item.data && typeof item.data === 'string') return item;
+              // Tzevaadom format: has 'cities' array
+              if (item.cities && Array.isArray(item.cities)) {
+                return { ...item, data: item.cities.join(', ') };
+              }
+              // Tzevaadom might use 'name' or other fields
+              if (item.name) return { ...item, data: item.name };
+              return item;
+            });
           }
 
           const now = new Date();
@@ -94,45 +116,70 @@ jobs:
           (async () => {
             console.log('=== Fetching alerts at', now.toISOString(), '===');
 
-            // Current alert
-            const cur = await fetchWithProxy('https://www.oref.org.il/warningMessages/alert/Alerts.json');
+            // ── Current Alert ────────────────────────────────────
+            let cur = await fetchWithProxy(OREF_CURRENT);
             const hasCurrent = cur && cur?.data && cur.data.length > 0;
             fs.writeFileSync('data/current.json', JSON.stringify(hasCurrent ? cur : null));
             console.log('current:', hasCurrent ? 'ACTIVE ALERT' : 'no alert');
 
-            // Today (last 24h)
-            const hist = await fetchWithProxy('https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json');
-            const todayArr = Array.isArray(hist) ? hist : [];
-            fs.writeFileSync('data/today.json', JSON.stringify(todayArr));
-            console.log('today:', todayArr.length, 'records');
+            // ── Tzeva Adom alerts-history (globally accessible!) ─
+            let tzevaData = null;
+            try {
+              console.log('Trying Tzeva Adom API...');
+              const tzevaRaw = await tryFetch(TZEVA_ADOM_HISTORY, { timeout: 15000 });
+              if (tzevaRaw) {
+                console.log('TZEVA ADOM OK! Type:', typeof tzevaRaw, 'IsArray:', Array.isArray(tzevaRaw));
+                console.log('TZEVA ADOM sample:', JSON.stringify(tzevaRaw).slice(0, 500));
+                tzevaData = normalizeTzeva(Array.isArray(tzevaRaw) ? tzevaRaw : (tzevaRaw.alerts || tzevaRaw.data || []));
+                if (tzevaData) console.log('TZEVA ADOM normalized:', tzevaData.length, 'items');
+              } else {
+                console.log('TZEVA ADOM: no data returned');
+              }
+            } catch(e) { console.log('TZEVA ADOM ERROR:', e.message); }
 
-            // Yesterday
+            // ── Today (last 24h) ─────────────────────────────────
+            let todayArr = [];
+            if (tzevaData && tzevaData.length > 0) {
+              // Use tzeva data as today's alerts (it returns recent alerts)
+              todayArr = tzevaData;
+              console.log('today: using tzeva adom data,', todayArr.length, 'records');
+            } else {
+              const hist = await fetchWithProxy(OREF_HISTORY);
+              todayArr = Array.isArray(hist) ? hist : [];
+              console.log('today: oref,', todayArr.length, 'records');
+            }
+            fs.writeFileSync('data/today.json', JSON.stringify(todayArr));
+
+            // ── Yesterday ────────────────────────────────────────
             const y = await fetchWithProxy(
-              'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate=' + dt(yd) + '&toDate=' + dt(yd) + '&mode=0'
+              OREF_RANGE + '?lang=he&fromDate=' + dt(yd) + '&toDate=' + dt(yd) + '&mode=0'
             );
             const yesterdayArr = Array.isArray(y) ? y : [];
             fs.writeFileSync('data/yesterday.json', JSON.stringify(yesterdayArr));
             console.log('yesterday:', yesterdayArr.length, 'records');
 
-            // Week
+            // ── Week ─────────────────────────────────────────────
             const w = await fetchWithProxy(
-              'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate=' + dt(wk) + '&toDate=' + dt(now) + '&mode=0'
+              OREF_RANGE + '?lang=he&fromDate=' + dt(wk) + '&toDate=' + dt(now) + '&mode=0'
             );
             const weekArr = Array.isArray(w) ? w : [];
             fs.writeFileSync('data/week.json', JSON.stringify(weekArr));
             console.log('week:', weekArr.length, 'records');
 
-            // Since war start
+            // ── Since war start ──────────────────────────────────
             const sw = await fetchWithProxy(
-              'https://alerts-history.oref.org.il/Shared/Ajax/GetAlarmsHistory.aspx?lang=he&fromDate=28.02.2026&toDate=' + dt(now) + '&mode=0'
+              OREF_RANGE + '?lang=he&fromDate=28.02.2026&toDate=' + dt(now) + '&mode=0'
             );
             const sinceWarArr = Array.isArray(sw) ? sw : [];
             fs.writeFileSync('data/sincewar.json', JSON.stringify(sinceWarArr));
             console.log('sincewar:', sinceWarArr.length, 'records');
 
-            // Metadata
+            // ── Metadata ─────────────────────────────────────────
             fs.writeFileSync('data/meta.json', JSON.stringify({
               lastUpdate: now.toISOString(),
+              sources: {
+                tzevaadom: tzevaData ? tzevaData.length : 'failed',
+              },
               counts: {
                 today: todayArr.length,
                 yesterday: yesterdayArr.length,
