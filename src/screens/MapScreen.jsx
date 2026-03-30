@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip } from 'react-leaflet'
+import { MapContainer, TileLayer, CircleMarker, Marker, Popup, Tooltip } from 'react-leaflet'
+import L from 'leaflet'
 import { useUser } from '../App'
 import { familyMembers, grandchildren, alertLevelConfig, WAR_START_DATE } from '../data/familyData'
 import { LOCALITIES, localityCoords, SPECIAL_BASE, DEFAULT_LOCATION } from '../data/israeliLocalities'
@@ -9,6 +10,45 @@ import { PERIODS, levelColors, levelRadius, calcSecurityLevel, formatDate, getHe
 import InlineLocationPicker from '../components/map/InlineLocationPicker'
 import EditLocationsModal from '../components/map/EditLocationsModal'
 import FamilyList from '../components/map/FamilyList'
+
+// ── יצירת אייקון מפה עם תמונת פרופיל ──────────────────
+function createPhotoIcon(people, photos, shelter) {
+  const anyInShelter = people.some(p => shelter[p.id]?.active)
+  const count = people.length
+  const person = people[0]
+  const photo = photos[person.id]
+  const size = anyInShelter ? 48 : 42
+  const borderColor = anyInShelter ? '#dc2626'
+    : person.isGrandchild ? '#f59e0b'
+    : person.military ? '#16a34a'
+    : '#3b82f6'
+  const borderWidth = anyInShelter ? 3 : 2.5
+
+  const imgPart = photo
+    ? `<img src="${photo}" style="width:100%;height:100%;object-fit:cover;display:block;" />`
+    : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#334155;color:white;font-size:${Math.round(size * 0.45)}px;">${person.emoji || '👤'}</div>`
+
+  const badge = count > 1
+    ? `<div style="position:absolute;top:-5px;right:-5px;background:#1e40af;color:white;border-radius:50%;width:20px;height:20px;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,0.3);z-index:2;">${count}</div>`
+    : ''
+
+  const shelterBadge = anyInShelter
+    ? `<div style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);font-size:14px;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));z-index:2;">🚨</div>`
+    : ''
+
+  const html = `<div style="position:relative;width:${size}px;height:${size}px;">
+    <div style="width:${size}px;height:${size}px;border-radius:50%;border:${borderWidth}px solid ${borderColor};overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.35);">${imgPart}</div>
+    ${badge}${shelterBadge}
+  </div>`
+
+  return L.divIcon({
+    html,
+    className: '',
+    iconSize: [size + 6, size + 6],
+    iconAnchor: [(size + 6) / 2, (size + 6) / 2],
+    popupAnchor: [0, -(size / 2 + 4)],
+  })
+}
 
 // ────────────────────────────────────────────────────────────
 // מסך ראשי
@@ -364,25 +404,16 @@ export default function MapScreen() {
             }
 
             return Object.values(grouped).map(({ lat, lng, people, isKidGroup }) => {
-              const anyInShelter = people.some(p => shelter[p.id]?.active)
-              const count = people.length
-              const hasMilitary = people.some(p => p.military && !p.isGrandchild)
-
-              const fillColor = anyInShelter ? '#dc2626'
-                : isKidGroup ? '#f59e0b'
-                : hasMilitary ? '#16a34a'
-                : '#3b82f6'
-              const radius = anyInShelter ? 12 : count > 1 ? 10 : 7
-
               const offsetLat = isKidGroup ? lat + 0.003 : lat
               const offsetLng = isKidGroup ? lng + 0.003 : lng
+              const icon = createPhotoIcon(people, photos, shelter)
 
               return (
-                <CircleMarker key={`${isKidGroup ? 'kid' : 'adult'}_${lat},${lng}`} center={[offsetLat, offsetLng]}
-                  radius={radius}
-                  fillColor={fillColor}
-                  color={anyInShelter ? '#dc2626' : 'white'}
-                  weight={anyInShelter ? 3 : 2} opacity={1} fillOpacity={anyInShelter ? 0.9 : 1}>
+                <Marker
+                  key={`${isKidGroup ? 'kid' : 'adult'}_${lat},${lng}`}
+                  position={[offsetLat, offsetLng]}
+                  icon={icon}
+                >
                   <Popup>
                     <div style={{ fontFamily: 'Heebo, Arial', direction: 'rtl', textAlign: 'right', fontSize: 13, minWidth: 140 }}>
                       <div style={{ fontWeight: 700, marginBottom: 4 }}>📍 {people[0].city}</div>
@@ -393,14 +424,14 @@ export default function MapScreen() {
                           {shelter[p.id]?.active && <span style={{ color: '#dc2626', fontWeight: 700 }}> 🚨 במקלט!</span>}
                         </div>
                       ))}
-                      {count > 1 && (
+                      {people.length > 1 && (
                         <div style={{ marginTop: 4, fontSize: 11, color: '#64748b' }}>
-                          {count} אנשים במיקום זה
+                          {people.length} אנשים במיקום זה
                         </div>
                       )}
                     </div>
                   </Popup>
-                </CircleMarker>
+                </Marker>
               )
             })
           })()}
@@ -423,19 +454,19 @@ export default function MapScreen() {
             </div>
           ))}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2, borderTop: '1px solid #e2e8f0', paddingTop: 2, marginTop: 2 }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#3b82f6', display: 'inline-block' }} />
+            <span style={{ width: 9, height: 9, borderRadius: '50%', border: '2px solid #3b82f6', display: 'inline-block', boxSizing: 'border-box' }} />
             <span style={{ color: '#374151' }}>מבוגר</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#16a34a', display: 'inline-block' }} />
+            <span style={{ width: 9, height: 9, borderRadius: '50%', border: '2px solid #16a34a', display: 'inline-block', boxSizing: 'border-box' }} />
             <span style={{ color: '#374151' }}>חייל</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
+            <span style={{ width: 9, height: 9, borderRadius: '50%', border: '2px solid #f59e0b', display: 'inline-block', boxSizing: 'border-box' }} />
             <span style={{ color: '#374151' }}>נכד</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#dc2626', display: 'inline-block' }} />
+            <span style={{ width: 9, height: 9, borderRadius: '50%', border: '2px solid #dc2626', display: 'inline-block', boxSizing: 'border-box' }} />
             <span style={{ color: '#dc2626', fontWeight: 700 }}>במקלט</span>
           </div>
         </div>
