@@ -7,6 +7,7 @@ import FamilyScreen from './screens/FamilyScreen'
 import FamilyWallScreen from './screens/FamilyWallScreen'
 import EventsScreen from './screens/EventsScreen'
 import ProfileScreen from './screens/ProfileScreen'
+import AchievementsScreen from './screens/AchievementsScreen'
 import LoginScreen from './screens/LoginScreen'
 import { familyMembers } from './data/familyData'
 import TopBar from './components/TopBar'
@@ -136,14 +137,15 @@ export default function App() {
               <TopBar />
               <div style={{ flex: 1, overflow: 'hidden', paddingBottom: 64 }}>
                 <Routes>
-                  <Route path="/"         element={<Navigate to="/map" />} />
-                  <Route path="/map"      element={<MapScreen />} />
-                  <Route path="/requests" element={<RequestsScreen />} />
-                  <Route path="/family"   element={<FamilyScreen />} />
-                  <Route path="/wall"     element={<FamilyWallScreen />} />
-                  <Route path="/events"   element={<EventsScreen />} />
-                  <Route path="/profile"  element={<ProfileScreen />} />
-                  <Route path="*"         element={<Navigate to="/map" />} />
+                  <Route path="/"              element={<Navigate to="/map" />} />
+                  <Route path="/map"           element={<MapScreen />} />
+                  <Route path="/requests"      element={<RequestsScreen />} />
+                  <Route path="/family"        element={<FamilyScreen />} />
+                  <Route path="/wall"          element={<FamilyWallScreen />} />
+                  <Route path="/events"        element={<EventsScreen />} />
+                  <Route path="/achievements"  element={<AchievementsScreen />} />
+                  <Route path="/profile"       element={<ProfileScreen />} />
+                  <Route path="*"              element={<Navigate to="/map" />} />
                 </Routes>
               </div>
               <BottomNav shelterCount={shelterCount} />
