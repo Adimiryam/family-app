@@ -222,8 +222,9 @@ export default function MapScreen() {
   const periodLabels = { today: '24 שעות', all: 'כל הנתונים' }
   const periodLabel = periodLabels[period] || '24 שעות'
 
+  // טווח נתונים — מחושב תמיד (לא רק כשנבחר "כל הנתונים")
   let dataRangeLabel = ''
-  if (period === 'all' && dataMeta?.dataRange?.oldest) {
+  if (dataMeta?.dataRange?.oldest) {
     const oldest = new Date(dataMeta.dataRange.oldest)
     dataRangeLabel = `מאז ${oldest.toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })}`
   }
@@ -406,7 +407,7 @@ export default function MapScreen() {
               cursor: 'pointer',
             }}
           >
-            {p.icon} {p.label}
+            {p.icon} {p.label}{p.key === 'all' && dataRangeLabel ? ` (${dataRangeLabel})` : ''}
           </button>
         ))}
         <div style={{
