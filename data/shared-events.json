@@ -11,7 +11,9 @@
       "fullDay": true,
       "id": 1774853403436,
       "tasks": [],
-      "attending": [],
+      "attending": [
+        "יהב"
+      ],
       "notAttending": []
     },
     {
@@ -122,5 +124,5 @@
       "emoji": "🕍"
     }
   ],
-  "updatedAt": "2026-03-30T16:58:12.050Z"
+  "updatedAt": "2026-03-30T17:01:34.785Z"
 }
