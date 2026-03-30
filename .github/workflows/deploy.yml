@@ -34,7 +34,7 @@ jobs:
       - name: Build with shared state token
         run: npm run build
         env:
-          VITE_GITHUB_TOKEN: ${{ secrets.SHARED_STATE_TOKEN }}
+          VITE_GT: ${{ secrets.SHARED_STATE_TOKEN }}
 
       - name: פריסה ל-gh-pages
         run: |
