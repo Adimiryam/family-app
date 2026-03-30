@@ -115,16 +115,21 @@ export default function MapScreen() {
   // נתוני אזעקות עבור העיר של המשתמש הנוכחי בלבד
   const currentUserCity = currentUser ? (locations[currentUser.id]?.city || null) : null
   const totalAlertsToday = currentUserCity ? (todayData[currentUserCity]?.alerts || 0) : 0
-  const sharedShelterMinutes24h = currentUserCity ? (todayData[currentUserCity]?.shelterMinutes || 0) : 0
-  const shelterTimeLabel = !todayLoaded
-    ? 'טוען...'
-    : !currentUserCity
-      ? 'הגדר מיקום'
-      : sharedShelterMinutes24h === 0
-        ? 'ללא אזעקות'
-        : sharedShelterMinutes24h < 60
-          ? `${sharedShelterMinutes24h} דק'`
-          : `${Math.floor(sharedShelterMinutes24h / 60)}ש' ${sharedShelterMinutes24h % 60}ד'`
+  const shelterMinutesUser = currentUserCity ? (todayData[currentUserCity]?.shelterMinutes || 0) : 0
+
+  // נתוני אזעקות כלל-משפחתיים (סך הכל בכל הערים של בני המשפחה)
+  const familyCitiesUnique = [...new Set(allPeople.filter(p => p.city).map(p => p.city))]
+  const totalAlertsTodayFamily = familyCitiesUnique.reduce((s, city) => s + (todayData[city]?.alerts || 0), 0)
+  const shelterMinutesFamily = familyCitiesUnique.reduce((s, city) => s + (todayData[city]?.shelterMinutes || 0), 0)
+
+  function formatShelterTime(minutes) {
+    if (minutes === 0) return 'ללא אזעקות'
+    if (minutes < 60) return `${minutes} דק'`
+    return `${Math.floor(minutes / 60)}ש' ${minutes % 60}ד'`
+  }
+
+  const shelterTimeLabelUser = !todayLoaded ? 'טוען...' : !currentUserCity ? 'הגדר מיקום' : formatShelterTime(shelterMinutesUser)
+  const shelterTimeLabelFamily = !todayLoaded ? 'טוען...' : formatShelterTime(shelterMinutesFamily)
 
   const handleInlineLocationSelect = (personId, locationData) => {
     saveLocations({ ...locations, [personId]: locationData })
@@ -439,9 +444,11 @@ export default function MapScreen() {
         handleInlineLocationSelect={handleInlineLocationSelect}
         setShowEdit={setShowEdit}
         totalAlertsToday={totalAlertsToday}
+        totalAlertsTodayFamily={totalAlertsTodayFamily}
         currentUserCity={currentUserCity}
         todayLoaded={todayLoaded}
-        shelterTimeLabel={shelterTimeLabel}
+        shelterTimeLabelUser={shelterTimeLabelUser}
+        shelterTimeLabelFamily={shelterTimeLabelFamily}
         securityLevel={securityLevel}
       />
 
