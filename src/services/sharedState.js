@@ -2,7 +2,7 @@
  * שירות מצב משותף — שומר מיקומים, מקלט וסטטוסים ב-GitHub
  * כך שכל בני המשפחה רואים את אותם נתונים.
  *
- * קריאה: GitHub raw (ללא אימות, מהיר)
+ * קריאה: GitHub raw + API fallback (ללא אימות, מהיר)
  * כתיבה: GitHub Contents API עם PAT (מוטמע בזמן build)
  */
 
@@ -14,26 +14,45 @@ const RAW_URL = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/${
 const API_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`
 const TOKEN  = import.meta.env.VITE_GITHUB_TOKEN || ''
 
-// ── קריאה ────────────────────────────────────────────────────
+// ── קריאה (עם fallback ל-API אם raw מקושש) ──────────────
 export async function loadSharedState() {
+  // נסיון 1: GitHub raw (מהיר, אבל יש cache של עד 5 דק')
   try {
     const r = await fetch(`${RAW_URL}?t=${Date.now()}`, {
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(6000),
     })
-    if (!r.ok) return null
-    return await r.json()
-  } catch {
-    return null
-  }
+    if (r.ok) {
+      const data = await r.json()
+      if (data && data.locations) return data
+    }
+  } catch { /* continue to fallback */ }
+
+  // נסיון 2: GitHub API (ללא cache, אבל מוגבל ל-60 בקשות/שעה)
+  try {
+    const r = await fetch(`${API_URL}?ref=${BRANCH}`, {
+      signal: AbortSignal.timeout(8000),
+      headers: { Accept: 'application/vnd.github.v3+json' },
+    })
+    if (r.ok) {
+      const meta = await r.json()
+      if (meta.content) {
+        const json = decodeURIComponent(escape(atob(meta.content)))
+        const data = JSON.parse(json)
+        if (data && data.locations) return data
+      }
+    }
+  } catch { /* give up */ }
+
+  return null
 }
 
-// ── כתיבה (עם debounce) ──────────────────────────────────────
+// ── כתיבה (עם debounce) ──────────────────────────────────
 let fileSha = null
 let saveTimer = null
 
 export function saveSharedStateDebounced(state) {
   if (!TOKEN) {
-    console.warn('[sharedState] No VITE_GITHUB_TOKEN — cloud sync disabled')
+    // ללא טוקן — שמירה מקומית בלבד, קריאה מהענן עדיין עובדת
     return
   }
   if (saveTimer) clearTimeout(saveTimer)
