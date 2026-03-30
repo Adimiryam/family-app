@@ -1,13 +1,16 @@
 /**
- * שירות נתוני אזעקות — 4 שכבות fallback:
+ * שירות נתוני אזעקות — 5 שכבות fallback:
  * 1. GitHub raw (ענף alerts-data, מתעדכן ע"י GitHub Actions)
- * 2. CORS proxy → oref API (ישיר מהדפדפן — עובד מישראל)
- * 3. static cache (public/data/) כ-fallback
- * 4. localStorage cache (מהשליפה האחרונה שהצליחה)
+ * 2. Tzeva Adom API (נגיש מכל מקום, לא חסום גאוגרפית)
+ * 3. CORS proxy → oref API (ישיר מהדפדפן — עובד מישראל)
+ * 4. static cache (public/data/) כ-fallback
+ * 5. localStorage cache (מהשליפה האחרונה שהצליחה)
  */
 
 const GITHUB_RAW = 'https://raw.githubusercontent.com/Adimiryam/family-app/alerts-data/data'
 const BASE = import.meta.env.BASE_URL
+
+const TZEVA_ADOM_HISTORY = 'https://api.tzevaadom.co.il/alerts-history'
 
 const OREF_HISTORY = 'https://www.oref.org.il/warningMessages/alert/History/AlertsHistory.json'
 const OREF_CURRENT = 'https://www.oref.org.il/warningMessages/alert/Alerts.json'
@@ -35,10 +38,17 @@ function calcLevel(n) {
 export function buildCityMap(rawList) {
   const counts = {}
   for (const item of rawList) {
-    if (!item.data) continue
-    const cities = String(item.data).split(/,\s*|;\s*/)
+    // Support both oref format (data: "city1, city2") and tzevaadom format (cities: [...])
+    let cities = []
+    if (item.data && typeof item.data === 'string') {
+      cities = item.data.split(/,\s*|;\s*/)
+    } else if (item.cities && Array.isArray(item.cities)) {
+      cities = item.cities
+    } else if (item.name) {
+      cities = [item.name]
+    }
     for (const raw of cities) {
-      const city = raw.trim()
+      const city = (typeof raw === 'string' ? raw : '').trim()
       if (city) counts[city] = (counts[city] || 0) + 1
     }
   }
@@ -86,6 +96,19 @@ async function fetchGitHub(filename) {
     if (!r.ok) return null
     const data = await r.json()
     return Array.isArray(data) ? data : null
+  } catch { return null }
+}
+
+// שליפה מ-Tzeva Adom API (נגיש גלובלית)
+async function fetchTzevaAdom() {
+  try {
+    const r = await fetch(TZEVA_ADOM_HISTORY, {
+      signal: AbortSignal.timeout(10000),
+    })
+    if (!r.ok) return null
+    const data = await r.json()
+    const items = Array.isArray(data) ? data : (data?.alerts || data?.data || null)
+    return Array.isArray(items) ? items : null
   } catch { return null }
 }
 
@@ -179,12 +202,22 @@ export async function fetchAlertsByPeriod(period) {
   // ── שלב 1: GitHub raw (ענף alerts-data) ──────────────────
   const gh = await fetchGitHub(filename)
   if (gh !== null) {
-    // הצלחנו לשלוף — גם מערך ריק = אין אזעקות (לא שגיאה)
     if (gh.length > 0) saveToLS(period, gh, 'github')
     return { data: gh.length > 0 ? buildCityMap(gh) : {}, source: 'github' }
   }
 
-  // ── שלב 2: CORS proxy לנתונים חיים ────────────────────
+  // ── שלב 2: Tzeva Adom API (נגיש גלובלית) ────────────────
+  if (period === 'today') {
+    try {
+      const tzevaData = await fetchTzevaAdom()
+      if (tzevaData !== null) {
+        if (tzevaData.length > 0) saveToLS(period, tzevaData, 'tzevaadom')
+        return { data: tzevaData.length > 0 ? buildCityMap(tzevaData) : {}, source: 'tzevaadom' }
+      }
+    } catch { /* continue */ }
+  }
+
+  // ── שלב 3: CORS proxy לנתונים חיים מ-oref ────────────────
   try {
     let liveData = null
 
@@ -204,18 +237,18 @@ export async function fetchAlertsByPeriod(period) {
     }
   } catch { /* continue */ }
 
-  // ── שלב 3: static cache (public/data/) ───────────────
+  // ── שלב 4: static cache (public/data/) ───────────────────
   const staticData = await fetchStatic(filename)
   if (staticData !== null) {
     return { data: staticData.length > 0 ? buildCityMap(staticData) : {}, source: 'cache' }
   }
 
-  // ── שלב 4: localStorage cache (עד 6 שעות) ────────────
+  // ── שלב 5: localStorage cache (עד 6 שעות) ────────────────
   const lsEntry = loadFromLS(period, 6 * 3600000)
   if (lsEntry && lsEntry.data.length > 0) {
     return { data: buildCityMap(lsEntry.data), source: 'cached-' + (lsEntry.source || 'local') }
   }
 
-  // ── שלב 5: הכל נכשל ──────────────────────────────────
+  // ── שלב 6: הכל נכשל ──────────────────────────────────────
   return { data: {}, source: 'unavailable' }
 }
