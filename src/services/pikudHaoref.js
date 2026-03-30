@@ -28,6 +28,16 @@ const LS_PREFIX = 'familyapp_alerts_'
 // עזרים
 // ────────────────────────────────────────────────────────────
 
+/**
+ * נרמול שם עיר — מקף ← רווח, רווחים כפולים ← רווח בודד
+ * נדרש כי רשימת הישובים משתמשת במקף (פרדס חנה-כרכור)
+ * ואילו נתוני פיקוד העורף משתמשים ברווח (פרדס חנה כרכור)
+ */
+export function normalizeCity(name) {
+  if (!name) return ''
+  return name.replace(/-/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
 function calcLevel(n) {
   if (n <= 3)  return 'low'
   if (n <= 10) return 'medium'
@@ -86,7 +96,7 @@ export function buildCityMap(rawList) {
     const cities = String(item.data).split(/,\s*|;\s*/)
     const shelterTime = shelterTimeForThreat(item.threat)
     for (const raw of cities) {
-      const city = raw.trim()
+      const city = normalizeCity(raw)
       if (!city) continue
       if (!cityData[city]) cityData[city] = { alerts: 0, shelterMinutes: 0 }
       cityData[city].alerts += 1
