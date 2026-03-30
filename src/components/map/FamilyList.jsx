@@ -4,8 +4,8 @@ import { getStatus } from '../../data/statusConfig'
 import { normalizeCity } from '../../services/pikudHaoref'
 import InlineLocationPicker from './InlineLocationPicker'
 
-export default function FamilyList({ members, kids, cityAlertData, shelter, photos, statuses, editingId, setEditingId, handleInlineLocationSelect, setShowEdit, alertsUser, alertsFamily, currentUserCity, loading, shelterTimeLabelUser, shelterTimeLabelFamily, periodLabel, securityLevel, dataRangeLabel }) {
-  const [viewMode, setViewMode] = useState('user') // 'user' = המיקום שלי, 'family' = כל המשפחה
+export default function FamilyList({ members, kids, cityAlertData, shelter, photos, statuses, editingId, setEditingId, handleInlineLocationSelect, setShowEdit, alertsUser, alertsFamily, currentUserCity, loading, shelterTimeLabelUser, shelterTimeLabelFamily, periodLabel, securityLevel, dataRangeLabel, onScroll, onMemberClick, focusedMemberId, scrollRef }) {
+  const [viewMode, setViewMode] = useState('user')
 
   const isFamily = viewMode === 'family'
   const alertsValue = isFamily ? (alertsFamily || '0') : (alertsUser || '0')
@@ -13,8 +13,133 @@ export default function FamilyList({ members, kids, cityAlertData, shelter, phot
   const shelterValue = isFamily ? shelterTimeLabelFamily : shelterTimeLabelUser
   const shelterLabel = `זמן בממ"ד ${periodLabel}`
 
+  const renderMemberCard = (member, isKid = false) => {
+    const nc = normalizeCity(member.city)
+    const cityData  = cityAlertData[nc] || { alerts: 0, level: 'low' }
+    const cfg       = alertLevelConfig[cityData.level]
+    const inShelter = shelter[member.id]?.active
+    const photo     = photos[member.id]
+    const status    = !isKid ? getStatus(statuses[member.id]) : null
+    const isEditing = editingId === member.id
+    const isFocused = focusedMemberId === member.id
+
+    return (
+      <div key={member.id}>
+        <div
+          onClick={() => onMemberClick && onMemberClick(member)}
+          style={{
+            background: isFocused ? '#eff6ff' : 'white',
+            borderRadius: 11,
+            padding: '10px 12px',
+            marginBottom: isEditing ? 0 : 7,
+            display: 'flex', alignItems: 'center', gap: 10,
+            boxShadow: inShelter ? '0 0 0 2px #dc2626' : isFocused ? '0 0 0 2px #3b82f6' : '0 1px 3px rgba(0,0,0,0.06)',
+            border: isEditing ? '2px solid #3b82f6' : isFocused ? '2px solid #3b82f6' : '2px solid transparent',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+        >
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: inShelter ? '#fee2e2' : isKid ? '#fef3c7' : '#f1f5f9',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 20, overflow: 'hidden',
+            border: inShelter ? '2px solid #dc2626' : isKid ? '2px solid #fcd34d' : '2px solid #e2e8f0',
+            flexShrink: 0,
+          }}>
+            {photo ? <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : member.emoji}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>
+              {member.name}
+              {member.military && <span style={{ marginRight: 4, fontSize: 11 }}>🪖</span>}
+            </div>
+            {isKid && member.parents && (
+              <div style={{ fontSize: 11, color: '#94a3b8' }}>{member.parents}</div>
+            )}
+            {inShelter
+              ? <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 700 }}>🚨 במקלט כרגע!</div>
+              : member.city
+                ? <button
+                    onClick={(e) => { e.stopPropagation(); setEditingId(isEditing ? null : member.id) }}
+                    style={{ fontSize: 11, color: isEditing ? '#1e40af' : '#64748b', display: 'flex', alignItems: 'center', gap: 5, background: isEditing ? '#eff6ff' : 'none', padding: isEditing ? '2px 8px' : 0, border: isEditing ? '1px solid #bfdbfe' : 'none', borderRadius: 8, cursor: 'pointer', marginTop: 4, fontWeight: isEditing ? 700 : 400 }}
+                  >
+                    <span>📍 {member.city}</span>
+                    <span style={{ fontSize: 10, opacity: 0.6 }}>{isEditing ? '▲' : '✏️'}</span>
+                    {status && !isEditing && (
+                      <span style={{ background: status.bg, color: status.color, padding: '1px 6px', borderRadius: 8, fontWeight: 700 }}>
+                        {status.icon} {status.label}
+                      </span>
+                    )}
+                  </button>
+                : <button onClick={(e) => { e.stopPropagation(); setEditingId(member.id) }} style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, background: 'none', padding: 0, textDecoration: 'underline', border: 'none', cursor: 'pointer' }}>
+                    📍 הגדר מיקום
+                  </button>
+            }
+          </div>
+          {member.city && !isEditing
+            ? <div style={{ background: cfg.bg, color: cfg.color, fontSize: 10, padding: '2px 8px', borderRadius: 16, fontWeight: 700 }}>
+                {cfg.icon} {cfg.label}
+              </div>
+            : null
+          }
+        </div>
+
+        {/* פרטי מיקום מורחבים בלחיצה */}
+        {isFocused && member.city && !isEditing && (
+          <div style={{
+            background: '#f0f7ff', borderRadius: '0 0 11px 11px',
+            padding: '10px 14px', marginBottom: 7, marginTop: -2,
+            border: '2px solid #3b82f6', borderTop: '1px dashed #93c5fd',
+            animation: 'fadeIn 0.2s ease',
+          }}>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ background: 'white', borderRadius: 8, padding: '6px 12px', flex: 1, minWidth: 80, textAlign: 'center' }}>
+                <div style={{ fontSize: 16 }}>🚨</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#dc2626' }}>{cityData.alerts || 0}</div>
+                <div style={{ fontSize: 9, color: '#64748b' }}>אזעקות ב{member.city}</div>
+              </div>
+              <div style={{ background: 'white', borderRadius: 8, padding: '6px 12px', flex: 1, minWidth: 80, textAlign: 'center' }}>
+                <div style={{ fontSize: 16 }}>{cfg.icon}</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: cfg.color }}>{cfg.label}</div>
+                <div style={{ fontSize: 9, color: '#64748b' }}>רמת סיכון</div>
+              </div>
+              {cityData.shelterMinutes > 0 && (
+                <div style={{ background: 'white', borderRadius: 8, padding: '6px 12px', flex: 1, minWidth: 80, textAlign: 'center' }}>
+                  <div style={{ fontSize: 16 }}>🏠</div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#7c3aed' }}>{cityData.shelterMinutes}ד'</div>
+                  <div style={{ fontSize: 9, color: '#64748b' }}>זמן בממ"ד</div>
+                </div>
+              )}
+            </div>
+            {inShelter && (
+              <div style={{ marginTop: 8, background: '#fee2e2', borderRadius: 8, padding: '6px 10px', fontSize: 12, color: '#dc2626', fontWeight: 700, textAlign: 'center' }}>
+                🚨 {member.name} במקלט כרגע!
+              </div>
+            )}
+          </div>
+        )}
+
+        {isEditing && (
+          <div style={{ marginBottom: 7 }}>
+            <InlineLocationPicker
+              person={member}
+              currentCity={member.city || null}
+              onSelect={handleInlineLocationSelect}
+              onClose={() => setEditingId(null)}
+            />
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div style={{ flex: 1, overflow: 'auto', padding: '12px 14px' }}>
+    <div
+      ref={scrollRef}
+      onScroll={onScroll}
+      style={{ flex: 1, overflow: 'auto', padding: '12px 14px' }}
+    >
 
       {/* כפתור מעבר בין מצבים */}
       <div style={{
@@ -70,134 +195,16 @@ export default function FamilyList({ members, kids, cityAlertData, shelter, phot
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>מצב בטחוני לפי בני משפחה</div>
+        <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>לחץ על בן משפחה למיקוד במפה</div>
         <button onClick={() => setShowEdit(true)} style={{ fontSize: 11, color: '#3b82f6', fontWeight: 700, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '3px 10px', cursor: 'pointer' }}>
           📍 ערוך מיקומים
         </button>
       </div>
 
-      {members.map(member => {
-        const nc = normalizeCity(member.city)
-        const cityData  = cityAlertData[nc] || { alerts: 0, level: 'low' }
-        const cfg       = alertLevelConfig[cityData.level]
-        const inShelter = shelter[member.id]?.active
-        const photo     = photos[member.id]
-        const status    = getStatus(statuses[member.id])
-        const isEditing = editingId === member.id
-
-        return (
-          <div key={member.id}>
-            <div style={{
-              background: 'white', borderRadius: 11,
-              padding: '10px 12px', marginBottom: isEditing ? 0 : 7,
-              display: 'flex', alignItems: 'center', gap: 10,
-              boxShadow: inShelter ? '0 0 0 2px #dc2626' : '0 1px 3px rgba(0,0,0,0.06)',
-              border: isEditing ? '2px solid #3b82f6' : '2px solid transparent',
-            }}>
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: inShelter ? '#fee2e2' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, overflow: 'hidden', border: inShelter ? '2px solid #dc2626' : '2px solid #e2e8f0', flexShrink: 0 }}>
-                {photo ? <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : member.emoji}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>
-                  {member.name}
-                  {member.military && <span style={{ marginRight: 4, fontSize: 11 }}>🪖</span>}
-                </div>
-                {inShelter
-                  ? <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 700 }}>🚨 במקלט כרגע!</div>
-                  : member.city
-                    ? <button
-                        onClick={() => setEditingId(isEditing ? null : member.id)}
-                        style={{ fontSize: 11, color: isEditing ? '#1e40af' : '#64748b', display: 'flex', alignItems: 'center', gap: 5, background: isEditing ? '#eff6ff' : 'none', padding: isEditing ? '2px 8px' : 0, border: isEditing ? '1px solid #bfdbfe' : 'none', borderRadius: 8, cursor: 'pointer', marginTop: 4, fontWeight: isEditing ? 700 : 400 }}
-                      >
-                        <span>📍 {member.city}</span>
-                        <span style={{ fontSize: 10, opacity: 0.6 }}>{isEditing ? '▲' : '✏️'}</span>
-                        {status && !isEditing && (
-                          <span style={{ background: status.bg, color: status.color, padding: '1px 6px', borderRadius: 8, fontWeight: 700 }}>
-                            {status.icon} {status.label}
-                          </span>
-                        )}
-                      </button>
-                    : <button onClick={() => setEditingId(member.id)} style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, background: 'none', padding: 0, textDecoration: 'underline', border: 'none', cursor: 'pointer' }}>
-                        📍 הגדר מיקום
-                      </button>
-                }
-              </div>
-              {member.city && !isEditing
-                ? <div style={{ background: cfg.bg, color: cfg.color, fontSize: 10, padding: '2px 8px', borderRadius: 16, fontWeight: 700 }}>
-                    {cfg.icon} {cfg.label}
-                  </div>
-                : null
-              }
-            </div>
-            {isEditing && (
-              <div style={{ marginBottom: 7 }}>
-                <InlineLocationPicker
-                  person={member}
-                  currentCity={member.city || null}
-                  onSelect={handleInlineLocationSelect}
-                  onClose={() => setEditingId(null)}
-                />
-              </div>
-            )}
-          </div>
-        )
-      })}
+      {members.map(member => renderMemberCard(member, false))}
 
       <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, margin: '12px 0 8px' }}>הנכדים האהובים</div>
-      {kids.map(child => {
-        const nc = normalizeCity(child.city)
-        const cityData = cityAlertData[nc] || { alerts: 0, level: 'low' }
-        const cfg      = alertLevelConfig[cityData.level]
-        const isEditing = editingId === child.id
-
-        return (
-          <div key={child.id}>
-            <div style={{
-              background: 'white', borderRadius: 11,
-              padding: '10px 12px', marginBottom: isEditing ? 0 : 7,
-              display: 'flex', alignItems: 'center', gap: 10,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-              border: isEditing ? '2px solid #3b82f6' : '2px solid transparent',
-            }}>
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, border: '2px solid #fcd34d', flexShrink: 0 }}>
-                {child.emoji}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>{child.name}</div>
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>{child.parents}</div>
-                {child.city
-                  ? <button
-                      onClick={() => setEditingId(isEditing ? null : child.id)}
-                      style={{ fontSize: 11, color: isEditing ? '#1e40af' : '#64748b', background: isEditing ? '#eff6ff' : 'none', padding: isEditing ? '2px 8px' : 0, border: isEditing ? '1px solid #bfdbfe' : 'none', borderRadius: 8, cursor: 'pointer', marginTop: 4, fontWeight: isEditing ? 700 : 400, display: 'flex', alignItems: 'center', gap: 4 }}
-                    >
-                      <span>📍 {child.city}</span>
-                      <span style={{ fontSize: 10, opacity: 0.6 }}>{isEditing ? '▲' : '✏️'}</span>
-                    </button>
-                  : <button onClick={() => setEditingId(child.id)} style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, background: 'none', padding: 0, textDecoration: 'underline', border: 'none', cursor: 'pointer' }}>
-                      📍 הגדר מיקום
-                    </button>
-                }
-              </div>
-              {child.city && !isEditing
-                ? <div style={{ background: cfg.bg, color: cfg.color, fontSize: 10, padding: '2px 8px', borderRadius: 16, fontWeight: 700 }}>
-                    {cfg.icon} {cfg.label}
-                  </div>
-                : null
-              }
-            </div>
-            {isEditing && (
-              <div style={{ marginBottom: 7 }}>
-                <InlineLocationPicker
-                  person={child}
-                  currentCity={child.city || null}
-                  onSelect={handleInlineLocationSelect}
-                  onClose={() => setEditingId(null)}
-                />
-              </div>
-            )}
-          </div>
-        )
-      })}
+      {kids.map(child => renderMemberCard(child, true))}
     </div>
   )
 }

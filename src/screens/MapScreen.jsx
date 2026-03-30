@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { MapContainer, TileLayer, CircleMarker, Marker, Popup, Tooltip } from 'react-leaflet'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { MapContainer, TileLayer, CircleMarker, Marker, Popup, Tooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { useUser } from '../App'
 import { familyMembers, grandchildren, alertLevelConfig, WAR_START_DATE } from '../data/familyData'
@@ -10,6 +10,13 @@ import { PERIODS, levelColors, levelRadius, calcSecurityLevel, formatDate, getHe
 import InlineLocationPicker from '../components/map/InlineLocationPicker'
 import EditLocationsModal from '../components/map/EditLocationsModal'
 import FamilyList from '../components/map/FamilyList'
+
+// ── קומפוננטה פנימית לקבלת רפרנס למפה ─────────────────
+function MapController({ mapRef }) {
+  const map = useMap()
+  useEffect(() => { mapRef.current = map }, [map, mapRef])
+  return null
+}
 
 // ── יצירת אייקון מפה עם תמונת פרופיל ──────────────────
 function createPhotoIcon(people, photos, shelter) {
@@ -68,9 +75,22 @@ export default function MapScreen() {
   const [todayLoaded,  setTodayLoaded]  = useState(false)
   const [editingId,    setEditingId]    = useState(null)
   const [dataMeta,     setDataMeta]     = useState(null)
+  const [mapCollapsed, setMapCollapsed] = useState(false)
+  const [focusedMemberId, setFocusedMemberId] = useState(null)
   const pollRef = useRef(null)
+  const mapInstanceRef = useRef(null)
+  const familyListRef = useRef(null)
+  const mapCollapsedRef = useRef(false)
 
   const now = new Date()
+
+  // ── invalidateSize כשהמפה משנה גודל ───────────────────
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (mapInstanceRef.current) mapInstanceRef.current.invalidateSize()
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [mapCollapsed])
 
   useEffect(() => {
     let cancelled = false
@@ -107,6 +127,40 @@ export default function MapScreen() {
     checkLive()
     pollRef.current = setInterval(checkLive, 10_000)
     return () => clearInterval(pollRef.current)
+  }, [])
+
+  // ── scroll handler לכיווץ/הרחבת המפה ──────────────────
+  const handleFamilyScroll = useCallback((e) => {
+    const scrollTop = e.target.scrollTop
+    if (scrollTop > 20 && !mapCollapsedRef.current) {
+      mapCollapsedRef.current = true
+      setMapCollapsed(true)
+    } else if (scrollTop <= 5 && mapCollapsedRef.current) {
+      mapCollapsedRef.current = false
+      setMapCollapsed(false)
+    }
+  }, [])
+
+  // ── לחיצה על בן משפחה → מיקוד במפה ───────────────────
+  const handleMemberClick = useCallback((member) => {
+    setFocusedMemberId(prev => prev === member.id ? null : member.id)
+    if (member.lat && member.lng && mapInstanceRef.current) {
+      // פתיחת המפה אם מכווצת
+      if (mapCollapsedRef.current) {
+        mapCollapsedRef.current = false
+        setMapCollapsed(false)
+      }
+      // גלילת הרשימה למעלה
+      if (familyListRef.current) {
+        familyListRef.current.scrollTop = 0
+      }
+      // טיסה למיקום
+      setTimeout(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.flyTo([member.lat, member.lng], 11, { duration: 0.8 })
+        }
+      }, 400)
+    }
   }, [])
 
   const cityAlertData = realData || {}
@@ -153,7 +207,6 @@ export default function MapScreen() {
   const familyAlertCities = new Set(allPeople.filter(p => p.city).map(p => normalizeCity(p.city)))
   const totalAlerts = [...familyAlertCities].reduce((s, nc) => s + (cityAlertData[nc]?.alerts || 0), 0)
 
-  // ── נתונים לפי התקופה הנבחרת ──
   const currentUserCity = currentUser ? (locations[currentUser.id]?.city || null) : null
   const currentUserCityNorm = normalizeCity(currentUserCity)
   const familyCitiesUnique = [...new Set(allPeople.filter(p => p.city).map(p => normalizeCity(p.city)))]
@@ -166,11 +219,9 @@ export default function MapScreen() {
 
   const securityLevel = calcSecurityLevel(alertsUser, !loading && todayLoaded)
 
-  // תווית תקופה
   const periodLabels = { today: '24 שעות', all: 'כל הנתונים' }
   const periodLabel = periodLabels[period] || '24 שעות'
 
-  // תווית טווח נתונים עבור "כל הנתונים"
   let dataRangeLabel = ''
   if (period === 'all' && dataMeta?.dataRange?.oldest) {
     const oldest = new Date(dataMeta.dataRange.oldest)
@@ -307,16 +358,14 @@ export default function MapScreen() {
         )}
       </div>
 
-
-
       <div style={{
         background: 'linear-gradient(135deg, #1e3a8a, #1e40af)',
         padding: '12px 16px', color: 'white',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
       }}>
         <div>
-          <h1 style={{ fontSize: 19, fontWeight: 800, marginBottom: 1 }}>🗺️ מפה ומדד הבטחון</h1>
-          <p style={{ fontSize: 11, opacity: 0.8, marginBottom: 0 }}>נתוני פיקוד העורף</p>
+          <h1 style={{ fontSize: 19, fontWeight: 800, marginBottom: 1 }}>שלום, {currentUser?.name} 👋</h1>
+          <p style={{ fontSize: 11, opacity: 0.8, marginBottom: 0 }}>🗺️ מפה ומדד הבטחון · נתוני פיקוד העורף</p>
           <div style={{ fontSize: 10, opacity: 0.7, marginTop: 2, display: 'flex', gap: 12 }}>
             <span>⚔️ חרבות ברזל: יום {daysSinceSwords}</span>
             <span>🦁 שאגת הארי: יום {daysSinceRoar}</span>
@@ -370,8 +419,16 @@ export default function MapScreen() {
         </div>
       </div>
 
-      <div style={{ flex: '0 0 220px', position: 'relative' }}>
-        <MapContainer center={[31.5, 34.9]} zoom={7} style={{ height: '100%', width: '100%' }} zoomControl={false} attributionControl={false}>
+      {/* ── מפה — מתכווצת בגלילה ─────────────────────────── */}
+      <div style={{
+        height: mapCollapsed ? 60 : 220,
+        transition: 'height 0.3s ease',
+        position: 'relative',
+        flexShrink: 0,
+        overflow: 'hidden',
+      }}>
+        <MapContainer center={[31.5, 34.9]} zoom={7} style={{ height: 220, width: '100%' }} zoomControl={false} attributionControl={false}>
+          <MapController mapRef={mapInstanceRef} />
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
           {showHeat && heatCities.map(city => {
@@ -437,6 +494,7 @@ export default function MapScreen() {
           })()}
         </MapContainer>
 
+        {/* כפתורי שכבות */}
         <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 999, display: 'flex', flexDirection: 'column', gap: 6 }}>
           <button onClick={() => setShowHeat(!showHeat)} style={{ padding: '5px 9px', borderRadius: 7, background: showHeat ? '#dc2626' : 'white', color: showHeat ? 'white' : '#64748b', fontSize: 10, fontWeight: 600, boxShadow: '0 2px 6px rgba(0,0,0,0.15)', fontFamily: 'Heebo, Arial', border: 'none', cursor: 'pointer' }}>
             🔥 אזעקות
@@ -446,30 +504,49 @@ export default function MapScreen() {
           </button>
         </div>
 
-        <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 999, background: 'rgba(255,255,255,0.93)', borderRadius: 8, padding: '5px 9px', fontSize: 10, boxShadow: '0 2px 6px rgba(0,0,0,0.15)', fontFamily: 'Heebo, Arial', direction: 'rtl' }}>
-          {Object.entries(alertLevelConfig).map(([key, cfg]) => (
-            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', background: cfg.color, display: 'inline-block' }} />
-              <span style={{ color: '#374151' }}>{cfg.label}</span>
+        {/* מקרא */}
+        {!mapCollapsed && (
+          <div style={{ position: 'absolute', bottom: 8, left: 8, zIndex: 999, background: 'rgba(255,255,255,0.93)', borderRadius: 8, padding: '5px 9px', fontSize: 10, boxShadow: '0 2px 6px rgba(0,0,0,0.15)', fontFamily: 'Heebo, Arial', direction: 'rtl' }}>
+            {Object.entries(alertLevelConfig).map(([key, cfg]) => (
+              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: cfg.color, display: 'inline-block' }} />
+                <span style={{ color: '#374151' }}>{cfg.label}</span>
+              </div>
+            ))}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2, borderTop: '1px solid #e2e8f0', paddingTop: 2, marginTop: 2 }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', border: '2px solid #3b82f6', display: 'inline-block', boxSizing: 'border-box' }} />
+              <span style={{ color: '#374151' }}>מבוגר</span>
             </div>
-          ))}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2, borderTop: '1px solid #e2e8f0', paddingTop: 2, marginTop: 2 }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', border: '2px solid #3b82f6', display: 'inline-block', boxSizing: 'border-box' }} />
-            <span style={{ color: '#374151' }}>מבוגר</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', border: '2px solid #16a34a', display: 'inline-block', boxSizing: 'border-box' }} />
+              <span style={{ color: '#374151' }}>חייל</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', border: '2px solid #f59e0b', display: 'inline-block', boxSizing: 'border-box' }} />
+              <span style={{ color: '#374151' }}>נכד</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', border: '2px solid #dc2626', display: 'inline-block', boxSizing: 'border-box' }} />
+              <span style={{ color: '#dc2626', fontWeight: 700 }}>במקלט</span>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', border: '2px solid #16a34a', display: 'inline-block', boxSizing: 'border-box' }} />
-            <span style={{ color: '#374151' }}>חייל</span>
+        )}
+
+        {/* אינדיקטור כיווץ */}
+        {mapCollapsed && (
+          <div
+            onClick={() => { mapCollapsedRef.current = false; setMapCollapsed(false); if (familyListRef.current) familyListRef.current.scrollTop = 0 }}
+            style={{
+              position: 'absolute', bottom: 4, left: '50%', transform: 'translateX(-50%)',
+              zIndex: 999, background: 'rgba(255,255,255,0.9)', borderRadius: 20,
+              padding: '3px 14px', fontSize: 11, fontWeight: 700, color: '#3b82f6',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.15)', cursor: 'pointer',
+              fontFamily: 'Heebo, Arial', direction: 'rtl',
+            }}
+          >
+            🗺️ הרחב מפה ▲
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', border: '2px solid #f59e0b', display: 'inline-block', boxSizing: 'border-box' }} />
-            <span style={{ color: '#374151' }}>נכד</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', border: '2px solid #dc2626', display: 'inline-block', boxSizing: 'border-box' }} />
-            <span style={{ color: '#dc2626', fontWeight: 700 }}>במקלט</span>
-          </div>
-        </div>
+        )}
       </div>
 
       <FamilyList
@@ -492,6 +569,10 @@ export default function MapScreen() {
         periodLabel={periodLabel}
         securityLevel={securityLevel}
         dataRangeLabel={dataRangeLabel}
+        onScroll={handleFamilyScroll}
+        onMemberClick={handleMemberClick}
+        focusedMemberId={focusedMemberId}
+        scrollRef={familyListRef}
       />
 
       {showEdit && (
