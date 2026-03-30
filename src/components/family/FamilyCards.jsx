@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { getStatus } from '../../data/statusConfig'
 import { alertLevelConfig } from '../../data/familyData'
 import { LOCALITIES, localityCoords, SPECIAL_BASE } from '../../data/israeliLocalities'
+import { normalizeCity } from '../../services/pikudHaoref'
 
 const LOCALITIES_SORTED = [...LOCALITIES].sort((a, b) => a.name.localeCompare(b.name, 'he'))
 
@@ -122,12 +123,13 @@ export function MemberCard({ member, city, shelter, photo, statusKey, alertData,
   const inShelter = shelter[member.id]?.active
   const isEditing = editingId === member.id
 
-  const todayAlerts     = alertData.today?.[city]?.alerts     ?? null
-  const yesterdayAlerts = alertData.yesterday?.[city]?.alerts ?? null
-  const weekAlerts      = alertData.week?.[city]?.alerts      ?? null
+  const nc = normalizeCity(city)
+  const todayAlerts     = alertData.today?.[nc]?.alerts     ?? null
+  const yesterdayAlerts = alertData.yesterday?.[nc]?.alerts ?? null
+  const weekAlerts      = alertData.week?.[nc]?.alerts      ?? null
 
   const todayLevel = todayAlerts > 0
-    ? alertLevelConfig[alertData.today[city].level]
+    ? alertLevelConfig[alertData.today[nc].level]
     : null
 
   return (
@@ -252,7 +254,8 @@ export function MemberCard({ member, city, shelter, photo, statusKey, alertData,
 // ────────────────────────────────────────────────────────────
 export function GrandchildCard({ child, city, shelter, photo, alertData, editingId, onToggleEdit, onSelectLocation }) {
   const inShelter   = shelter[child.id]?.active
-  const todayAlerts = alertData.today?.[city]?.alerts ?? null
+  const nc = normalizeCity(city)
+  const todayAlerts = alertData.today?.[nc]?.alerts ?? null
   const isEditing   = editingId === child.id
 
   return (
