@@ -1,12 +1,14 @@
 {
-  "lastUpdate": "2026-03-30T08:05:59.756Z",
-  "sources": {
-    "tzevaadom": 224
+  "lastUpdate": "2026-03-30T08:12:35.839Z",
+  "totalAccumulated": 224,
+  "dataRange": {
+    "oldest": "2026-03-28T22:08:30.000Z",
+    "newest": "2026-03-30T06:29:10.000Z"
   },
   "counts": {
-    "today": 224,
-    "yesterday": 0,
-    "week": 0,
-    "sinceWar": 0
+    "today": 158,
+    "yesterday": 66,
+    "week": 224,
+    "sinceWar": 224
   }
 }
