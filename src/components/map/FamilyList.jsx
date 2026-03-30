@@ -3,14 +3,14 @@ import { alertLevelConfig } from '../../data/familyData'
 import { getStatus } from '../../data/statusConfig'
 import InlineLocationPicker from './InlineLocationPicker'
 
-export default function FamilyList({ members, kids, cityAlertData, shelter, photos, statuses, editingId, setEditingId, handleInlineLocationSelect, setShowEdit, totalAlertsToday, totalAlertsTodayFamily, currentUserCity, todayLoaded, shelterTimeLabelUser, shelterTimeLabelFamily, securityLevel }) {
+export default function FamilyList({ members, kids, cityAlertData, shelter, photos, statuses, editingId, setEditingId, handleInlineLocationSelect, setShowEdit, alertsUser, alertsFamily, currentUserCity, loading, shelterTimeLabelUser, shelterTimeLabelFamily, periodLabel, securityLevel }) {
   const [viewMode, setViewMode] = useState('user') // 'user' = המיקום שלי, 'family' = כל המשפחה
 
   const isFamily = viewMode === 'family'
-  const alertsValue = isFamily ? (totalAlertsTodayFamily || (todayLoaded ? '0' : '—')) : (totalAlertsToday || (todayLoaded ? '0' : '—'))
-  const alertsLabel = isFamily ? 'אזעקות כל המשפחה' : (currentUserCity ? `אזעקות ב${currentUserCity}` : 'אזעקות היום')
+  const alertsValue = isFamily ? (alertsFamily || '0') : (alertsUser || '0')
+  const alertsLabel = isFamily ? `אזעקות כל המשפחה` : (currentUserCity ? `אזעקות ב${currentUserCity}` : 'אזעקות')
   const shelterValue = isFamily ? shelterTimeLabelFamily : shelterTimeLabelUser
-  const shelterLabel = isFamily ? 'ממד כל המשפחה' : 'ממד 24שׁ'
+  const shelterLabel = `זמן בממ"ד ${periodLabel}`
 
   return (
     <div style={{ flex: 1, overflow: 'auto', padding: '12px 14px' }}>
@@ -50,14 +50,14 @@ export default function FamilyList({ members, kids, cityAlertData, shelter, phot
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
         {[
-          { label: alertsLabel, value: alertsValue, icon: '🚨', color: '#dc2626', bg: '#fee2e2' },
-          { label: shelterLabel, value: shelterValue, icon: '🏠', color: '#7c3aed', bg: '#f5f3ff' },
+          { label: alertsLabel, value: loading ? '—' : alertsValue, icon: '🚨', color: '#dc2626', bg: '#fee2e2' },
+          { label: shelterLabel, value: loading ? 'טוען...' : shelterValue, icon: '🏠', color: '#7c3aed', bg: '#f5f3ff' },
           { label: 'מדד בטחון',   value: securityLevel.label, icon: securityLevel.icon, color: securityLevel.color, bg: securityLevel.bg },
         ].map(s => (
           <div key={s.label} style={{ background: s.bg, borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
             <div style={{ fontSize: 18 }}>{s.icon}</div>
             <div style={{ fontSize: 17, fontWeight: 800, color: s.color }}>{s.value}</div>
-            <div style={{ fontSize: 10, color: s.color, opacity: 0.8 }}>{s.label}</div>
+            <div style={{ fontSize: 9, color: s.color, opacity: 0.8 }}>{s.label}</div>
           </div>
         ))}
       </div>
