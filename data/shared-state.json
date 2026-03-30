@@ -146,8 +146,7 @@
       "active": false
     },
     "5": {
-      "active": true,
-      "since": "2026-03-30T17:07:25.229Z"
+      "active": false
     },
     "6": {
       "active": false
@@ -166,10 +165,14 @@
       "date": "2026-03-30",
       "minutes": 0
     },
+    "5": {
+      "date": "2026-03-30",
+      "minutes": 1
+    },
     "6": {
       "date": "2026-03-26",
       "minutes": 0
     }
   },
-  "updatedAt": "2026-03-30T17:07:27.233Z"
+  "updatedAt": "2026-03-30T17:08:02.285Z"
 }
