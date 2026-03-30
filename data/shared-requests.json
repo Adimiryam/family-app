@@ -12,7 +12,9 @@
       "price": "",
       "id": 1774889895577,
       "author": "עינת",
-      "signedUp": [],
+      "signedUp": [
+        "יהב"
+      ],
       "interested": [],
       "createdAt": "30.3.2026"
     },
@@ -93,5 +95,5 @@
       "createdAt": "2026-03-18"
     }
   ],
-  "updatedAt": "2026-03-30T17:01:49.699Z"
+  "updatedAt": "2026-03-30T17:02:21.164Z"
 }
