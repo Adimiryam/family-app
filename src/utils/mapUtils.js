@@ -5,6 +5,8 @@ export const LOCALITIES_SORTED = [...LOCALITIES].sort((a, b) => a.name.localeCom
 
 export const PERIODS = [
   { key: 'today',    label: '24 שעות',           icon: '📅' },
+  { key: 'week',     label: 'שבוע',              icon: '📆' },
+  { key: 'month',    label: 'חודש',              icon: '📆' },
   { key: 'all',      label: 'כל הנתונים',        icon: '📊' },
 ]
 export const levelColors = { low: '#16a34a', medium: '#d97706', high: '#dc2626', critical: '#7c0000' }
@@ -33,47 +35,30 @@ export function numberToGematria(num) {
   const hundreds = ['', 'ק', 'ר', 'ש', 'ת']
 
   let result = ''
-
-  // מאות (עד 400=ת, אחרי זה תק=500, תר=600 וכו')
   let h = Math.floor(num / 100)
   let remainder = num % 100
 
-  while (h > 4) {
-    result += 'ת'
-    h -= 4
-  }
+  while (h > 4) { result += 'ת'; h -= 4 }
   if (h > 0) result += hundreds[h]
 
-  // מקרים מיוחדים: 15 ו-16
-  if (remainder === 15) {
-    result += 'טו'
-  } else if (remainder === 16) {
-    result += 'טז'
-  } else {
+  if (remainder === 15) { result += 'טו' }
+  else if (remainder === 16) { result += 'טז' }
+  else {
     const t = Math.floor(remainder / 10)
     const o = remainder % 10
     if (t > 0) result += tens[t]
     if (o > 0) result += ones[o]
   }
 
-  // הוספת גרש/גרשיים
-  if (result.length === 1) {
-    result += '׳'
-  } else if (result.length > 1) {
-    result = result.slice(0, -1) + '״' + result.slice(-1)
-  }
+  if (result.length === 1) { result += '׳' }
+  else if (result.length > 1) { result = result.slice(0, -1) + '״' + result.slice(-1) }
 
   return result
 }
 
-// ────────────────────────────────────────────────────────────
-// תאריך עברי עם אותיות
-// ────────────────────────────────────────────────────────────
 export function getHebrewDateParts(date) {
   try {
-    const fmt = new Intl.DateTimeFormat('he-IL-u-ca-hebrew', {
-      year: 'numeric', month: 'long', day: 'numeric'
-    })
+    const fmt = new Intl.DateTimeFormat('he-IL-u-ca-hebrew', { year: 'numeric', month: 'long', day: 'numeric' })
     const parts = fmt.formatToParts(date)
     let day = '', month = '', year = ''
     for (const p of parts) {

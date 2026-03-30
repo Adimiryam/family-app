@@ -4,7 +4,7 @@ import { getStatus } from '../../data/statusConfig'
 import { normalizeCity } from '../../services/pikudHaoref'
 import InlineLocationPicker from './InlineLocationPicker'
 
-export default function FamilyList({ members, kids, cityAlertData, shelter, photos, statuses, editingId, setEditingId, handleInlineLocationSelect, setShowEdit, alertsUser, alertsFamily, currentUserCity, loading, shelterTimeLabelUser, shelterTimeLabelFamily, periodLabel, securityLevel, dataRangeLabel, onScroll, onMemberClick, focusedMemberId, scrollRef }) {
+export default function FamilyList({ members, kids, cityAlertData, shelter, photos, statuses, editingId, setEditingId, handleInlineLocationSelect, setShowEdit, alertsUser, alertsFamily, currentUserCity, loading, shelterTimeLabelUser, shelterTimeLabelFamily, periodLabel, securityLevel, dataRangeLabel, onScroll, onMemberClick, focusedMemberId, scrollRef, currentUserId }) {
   const [viewMode, setViewMode] = useState('user')
 
   const isFamily = viewMode === 'family'
@@ -20,6 +20,7 @@ export default function FamilyList({ members, kids, cityAlertData, shelter, phot
     const inShelter = shelter[member.id]?.active
     const photo     = photos[member.id]
     const status    = !isKid ? getStatus(statuses[member.id]) : null
+    const isMe      = member.id === currentUserId
     const isEditing = editingId === member.id
     const isFocused = focusedMemberId === member.id
 
@@ -53,6 +54,7 @@ export default function FamilyList({ members, kids, cityAlertData, shelter, phot
             <div style={{ fontWeight: 700, fontSize: 13, color: '#1e293b' }}>
               {member.name}
               {member.military && <span style={{ marginRight: 4, fontSize: 11 }}>🪖</span>}
+              {isMe && <span style={{ marginRight: 4, fontSize: 10, color: '#3b82f6', fontWeight: 800 }}>(אני)</span>}
             </div>
             {isKid && member.parents && (
               <div style={{ fontSize: 11, color: '#94a3b8' }}>{member.parents}</div>
@@ -60,21 +62,27 @@ export default function FamilyList({ members, kids, cityAlertData, shelter, phot
             {inShelter
               ? <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 700 }}>🚨 במקלט כרגע!</div>
               : member.city
-                ? <button
-                    onClick={(e) => { e.stopPropagation(); setEditingId(isEditing ? null : member.id) }}
-                    style={{ fontSize: 11, color: isEditing ? '#1e40af' : '#64748b', display: 'flex', alignItems: 'center', gap: 5, background: isEditing ? '#eff6ff' : 'none', padding: isEditing ? '2px 8px' : 0, border: isEditing ? '1px solid #bfdbfe' : 'none', borderRadius: 8, cursor: 'pointer', marginTop: 4, fontWeight: isEditing ? 700 : 400 }}
-                  >
+                ? <div style={{ fontSize: 11, color: '#64748b', display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
                     <span>📍 {member.city}</span>
-                    <span style={{ fontSize: 10, opacity: 0.6 }}>{isEditing ? '▲' : '✏️'}</span>
-                    {status && !isEditing && (
-                      <span style={{ background: status.bg, color: status.color, padding: '1px 6px', borderRadius: 8, fontWeight: 700 }}>
+                    {isMe && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingId(isEditing ? null : member.id) }}
+                        style={{ fontSize: 10, color: '#3b82f6', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '1px 6px', cursor: 'pointer', fontWeight: 700 }}
+                      >
+                        {isEditing ? '▲ סגור' : '✏️ שנה'}
+                      </button>
+                    )}
+                    {status && (
+                      <span style={{ background: status.bg, color: status.color, padding: '1px 6px', borderRadius: 8, fontWeight: 700, fontSize: 10 }}>
                         {status.icon} {status.label}
                       </span>
                     )}
-                  </button>
-                : <button onClick={(e) => { e.stopPropagation(); setEditingId(member.id) }} style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, background: 'none', padding: 0, textDecoration: 'underline', border: 'none', cursor: 'pointer' }}>
-                    📍 הגדר מיקום
-                  </button>
+                  </div>
+                : isMe
+                  ? <button onClick={(e) => { e.stopPropagation(); setEditingId(member.id) }} style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, background: 'none', padding: 0, textDecoration: 'underline', border: 'none', cursor: 'pointer' }}>
+                      📍 הגדר מיקום
+                    </button>
+                  : <div style={{ fontSize: 11, color: '#94a3b8' }}>📍 מיקום לא הוגדר</div>
             }
           </div>
           {member.city && !isEditing
@@ -91,7 +99,6 @@ export default function FamilyList({ members, kids, cityAlertData, shelter, phot
             background: '#f0f7ff', borderRadius: '0 0 11px 11px',
             padding: '10px 14px', marginBottom: 7, marginTop: -2,
             border: '2px solid #3b82f6', borderTop: '1px dashed #93c5fd',
-            animation: 'fadeIn 0.2s ease',
           }}>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <div style={{ background: 'white', borderRadius: 8, padding: '6px 12px', flex: 1, minWidth: 80, textAlign: 'center' }}>
@@ -120,7 +127,7 @@ export default function FamilyList({ members, kids, cityAlertData, shelter, phot
           </div>
         )}
 
-        {isEditing && (
+        {isEditing && isMe && (
           <div style={{ marginBottom: 7 }}>
             <InlineLocationPicker
               person={member}
@@ -194,12 +201,7 @@ export default function FamilyList({ members, kids, cityAlertData, shelter, phot
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>לחץ על בן משפחה למיקוד במפה</div>
-        <button onClick={() => setShowEdit(true)} style={{ fontSize: 11, color: '#3b82f6', fontWeight: 700, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '3px 10px', cursor: 'pointer' }}>
-          📍 ערוך מיקומים
-        </button>
-      </div>
+      <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, marginBottom: 8 }}>לחץ על בן משפחה למיקוד במפה</div>
 
       {members.map(member => renderMemberCard(member, false))}
 

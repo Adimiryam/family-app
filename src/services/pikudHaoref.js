@@ -24,15 +24,6 @@ const CORS_PROXIES = [
 
 const LS_PREFIX = 'familyapp_alerts_'
 
-// ────────────────────────────────────────────────────────────
-// עזרים
-// ────────────────────────────────────────────────────────────
-
-/**
- * נרמול שם עיר — מקף ← רווח, רווחים כפולים ← רווח בודד
- * נדרש כי רשימת הישובים משתמשת במקף (פרדס חנה-כרכור)
- * ואילו נתוני פיקוד העורף משתמשים ברווח (פרדס חנה כרכור)
- */
 export function normalizeCity(name) {
   if (!name) return ''
   return name.replace(/-/g, ' ').replace(/\s+/g, ' ').trim()
@@ -45,46 +36,52 @@ function calcLevel(n) {
   return 'critical'
 }
 
-/**
- * זמן שהייה בממ"ד לפי סוג איום (בדקות).
- * פיקוד העורף מנחה להישאר בממ"ד כ-10 דקות לאחר אזעקת טילים.
- */
 function shelterTimeForThreat(threat) {
   const t = Number(threat)
-  if (t === 4) return 0   // רעידת אדמה — לא נכנסים לממ"ד
-  if (t === 6) return 0   // צונאמי — מתרחקים מהחוף, לא ממ"ד
-  return 10               // טילים, כלי טיס, מחבלים, חומ"ס — 10 דקות בממ"ד
+  if (t === 4) return 0
+  if (t === 6) return 0
+  return 10
 }
 
-/**
- * Flatten nested tzevaadom format into flat alert items.
- */
 function flattenAlerts(rawList) {
   const flat = []
   for (const item of rawList) {
-    if (item.data && typeof item.data === 'string') {
-      flat.push(item)
-      continue
-    }
-    if (item.cities && Array.isArray(item.cities) && !item.alerts) {
-      flat.push({ ...item, data: item.cities.join(', ') })
-      continue
-    }
+    if (item.data && typeof item.data === 'string') { flat.push(item); continue }
+    if (item.cities && Array.isArray(item.cities) && !item.alerts) { flat.push({ ...item, data: item.cities.join(', ') }); continue }
     if (item.alerts && Array.isArray(item.alerts)) {
       for (const sub of item.alerts) {
-        if (sub.cities && Array.isArray(sub.cities)) {
-          flat.push({ data: sub.cities.join(', '), time: sub.time, threat: sub.threat })
-        } else if (sub.data && typeof sub.data === 'string') {
-          flat.push(sub)
-        }
+        if (sub.cities && Array.isArray(sub.cities)) flat.push({ data: sub.cities.join(', '), time: sub.time, threat: sub.threat })
+        else if (sub.data && typeof sub.data === 'string') flat.push(sub)
       }
       continue
     }
-    if (item.name) {
-      flat.push({ ...item, data: item.name })
-    }
+    if (item.name) flat.push({ ...item, data: item.name })
   }
   return flat
+}
+
+// ── פרסור תאריך מאיטם אזעקה ──────────────────────────────
+function parseAlertDate(item) {
+  const s = item.time || item.alertDate || item.date || item.timestamp || ''
+  if (!s) return null
+  let d = new Date(s)
+  if (!isNaN(d.getTime())) return d
+  // dd.mm.yyyy format
+  const m = String(s).match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/)
+  if (m) return new Date(+m[3], +m[2]-1, +m[1])
+  return null
+}
+
+// ── סינון לפי טווח ימים ───────────────────────────────────
+function filterByDays(items, days) {
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - days)
+  cutoff.setHours(0, 0, 0, 0)
+  return items.filter(item => {
+    const d = parseAlertDate(item)
+    if (!d) return true
+    return d >= cutoff
+  })
 }
 
 export function buildCityMap(rawList) {
@@ -111,23 +108,13 @@ export function buildCityMap(rawList) {
 }
 
 function fmtDate(d) {
-  return [
-    String(d.getDate()).padStart(2, '0'),
-    String(d.getMonth() + 1).padStart(2, '0'),
-    d.getFullYear(),
-  ].join('.')
+  return [String(d.getDate()).padStart(2, '0'), String(d.getMonth() + 1).padStart(2, '0'), d.getFullYear()].join('.')
 }
-
-// ────────────────────────────────────────────────────────────
-// שליפות מרובות מקורות
-// ────────────────────────────────────────────────────────────
 
 async function fetchGitHub(filename) {
   try {
     const ts = Date.now()
-    const r = await fetch(`${GITHUB_RAW}/${filename}?t=${ts}`, {
-      signal: AbortSignal.timeout(8000),
-    })
+    const r = await fetch(`${GITHUB_RAW}/${filename}?t=${ts}`, { signal: AbortSignal.timeout(8000) })
     if (!r.ok) return null
     const data = await r.json()
     return Array.isArray(data) ? data : null
@@ -136,9 +123,7 @@ async function fetchGitHub(filename) {
 
 async function fetchTzevaAdom() {
   try {
-    const r = await fetch(TZEVA_ADOM_HISTORY, {
-      signal: AbortSignal.timeout(10000),
-    })
+    const r = await fetch(TZEVA_ADOM_HISTORY, { signal: AbortSignal.timeout(10000) })
     if (!r.ok) return null
     const data = await r.json()
     const items = Array.isArray(data) ? data : (data?.alerts || data?.data || null)
@@ -163,10 +148,7 @@ async function fetchProxy(url) {
       if (!r.ok) continue
       const text = await r.text()
       if (!text || text === '""' || text === 'null' || text.length < 3) continue
-      try {
-        const data = JSON.parse(text)
-        if (data) return data
-      } catch { continue }
+      try { const data = JSON.parse(text); if (data) return data } catch { continue }
     } catch { continue }
   }
   return null
@@ -176,7 +158,7 @@ function saveToLS(period, rawList, source) {
   try {
     const entry = { data: rawList, source, savedAt: Date.now() }
     localStorage.setItem(LS_PREFIX + period, JSON.stringify(entry))
-  } catch { /* localStorage full or unavailable */ }
+  } catch {}
 }
 
 function loadFromLS(period, maxAgeMs = 3600000) {
@@ -190,97 +172,85 @@ function loadFromLS(period, maxAgeMs = 3600000) {
   } catch { return null }
 }
 
-// ────────────────────────────────────────────────────────────
-// שליפת מטא-דאטה (טווח נתונים)
-// ────────────────────────────────────────────────────────────
 export async function fetchMeta() {
   try {
     const ts = Date.now()
-    const r = await fetch(`${GITHUB_RAW}/meta.json?t=${ts}`, {
-      signal: AbortSignal.timeout(5000),
-    })
+    const r = await fetch(`${GITHUB_RAW}/meta.json?t=${ts}`, { signal: AbortSignal.timeout(5000) })
     if (!r.ok) return null
     return await r.json()
   } catch { return null }
 }
 
-// ────────────────────────────────────────────────────────────
-// API ציבורי
-// ────────────────────────────────────────────────────────────
-
 export async function fetchCurrentAlert() {
   try {
     const ts = Date.now()
-    const r = await fetch(`${GITHUB_RAW}/current.json?t=${ts}`, {
-      signal: AbortSignal.timeout(5000),
-    })
-    if (r.ok) {
-      const data = await r.json()
-      if (data && data?.data?.length) return data
-    }
-  } catch { /* continue */ }
-
-  try {
-    const data = await fetchProxy(OREF_CURRENT)
-    if (data && data?.data?.length) return data
-  } catch { /* continue */ }
-
+    const r = await fetch(`${GITHUB_RAW}/current.json?t=${ts}`, { signal: AbortSignal.timeout(5000) })
+    if (r.ok) { const data = await r.json(); if (data && data?.data?.length) return data }
+  } catch {}
+  try { const data = await fetchProxy(OREF_CURRENT); if (data && data?.data?.length) return data } catch {}
   return null
 }
 
-/**
- * נתוני אזעקות לפי תקופה: today / all
- * מחזיר { data: { [cityName]: { alerts, shelterMinutes, level } }, source }
- */
-export async function fetchAlertsByPeriod(period) {
-  const fileMap = {
-    today:    'today.json',
-    all:      'all.json',
-  }
-  const filename = fileMap[period]
-  if (!filename) return { data: {}, source: 'empty' }
+// ── שליפת נתוני אזעקות גולמיים (ללא עיבוד) ───────────────
+async function fetchRawAlerts(dataKey) {
+  const filename = dataKey === 'today' ? 'today.json' : 'all.json'
 
-  // ── שלב 1: GitHub raw (ענף alerts-data) ──────────────────
+  // שלב 1: GitHub raw
   const gh = await fetchGitHub(filename)
   if (gh !== null) {
-    if (gh.length > 0) saveToLS(period, gh, 'github')
-    return { data: gh.length > 0 ? buildCityMap(gh) : {}, source: 'github' }
+    if (gh.length > 0) saveToLS(dataKey, gh, 'github')
+    return { raw: gh, source: 'github' }
   }
 
-  // ── שלב 2: Tzeva Adom API (נגיש גלובלית) ────────────────
-  if (period === 'today') {
+  // שלב 2: Tzeva Adom API
+  if (dataKey === 'today') {
     try {
       const tzevaData = await fetchTzevaAdom()
       if (tzevaData !== null) {
-        if (tzevaData.length > 0) saveToLS(period, tzevaData, 'tzevaadom')
-        return { data: tzevaData.length > 0 ? buildCityMap(tzevaData) : {}, source: 'tzevaadom' }
+        if (tzevaData.length > 0) saveToLS(dataKey, tzevaData, 'tzevaadom')
+        return { raw: tzevaData, source: 'tzevaadom' }
       }
-    } catch { /* continue */ }
+    } catch {}
   }
 
-  // ── שלב 3: CORS proxy לנתונים חיים מ-oref ────────────────
-  if (period === 'today') {
+  // שלב 3: CORS proxy
+  if (dataKey === 'today') {
     try {
       const liveData = await fetchProxy(OREF_HISTORY)
       if (Array.isArray(liveData)) {
-        if (liveData.length > 0) saveToLS(period, liveData, 'live')
-        return { data: liveData.length > 0 ? buildCityMap(liveData) : {}, source: 'live' }
+        if (liveData.length > 0) saveToLS(dataKey, liveData, 'live')
+        return { raw: liveData, source: 'live' }
       }
-    } catch { /* continue */ }
+    } catch {}
   }
 
-  // ── שלב 4: static cache (public/data/) ───────────────────
+  // שלב 4: static cache
   const staticData = await fetchStatic(filename)
-  if (staticData !== null) {
-    return { data: staticData.length > 0 ? buildCityMap(staticData) : {}, source: 'cache' }
-  }
+  if (staticData !== null) return { raw: staticData, source: 'cache' }
 
-  // ── שלב 5: localStorage cache (עד 6 שעות) ────────────────
-  const lsEntry = loadFromLS(period, 6 * 3600000)
-  if (lsEntry && lsEntry.data.length > 0) {
-    return { data: buildCityMap(lsEntry.data), source: 'cached-' + (lsEntry.source || 'local') }
-  }
+  // שלב 5: localStorage
+  const lsEntry = loadFromLS(dataKey, 6 * 3600000)
+  if (lsEntry && lsEntry.data.length > 0) return { raw: lsEntry.data, source: 'cached-' + (lsEntry.source || 'local') }
 
-  // ── שלב 6: הכל נכשל ──────────────────────────────────────
-  return { data: {}, source: 'unavailable' }
+  return { raw: [], source: 'unavailable' }
+}
+
+/**
+ * נתוני אזעקות לפי תקופה: today / week / month / all
+ * מחזיר { data: { [cityName]: { alerts, shelterMinutes, level } }, source }
+ */
+export async function fetchAlertsByPeriod(period) {
+  // today שולף today.json, כל השאר שולפים all.json
+  const dataKey = period === 'today' ? 'today' : 'all'
+  const { raw, source } = await fetchRawAlerts(dataKey)
+
+  if (raw.length === 0) return { data: {}, source }
+
+  // סינון לפי טווח ימים
+  let filtered = raw
+  if (period === 'week') filtered = filterByDays(raw, 7)
+  else if (period === 'month') filtered = filterByDays(raw, 30)
+  // today ו-all לא מסוננים
+
+  return { data: filtered.length > 0 ? buildCityMap(filtered) : {}, source }
 }
