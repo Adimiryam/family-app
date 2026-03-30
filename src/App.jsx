@@ -1,5 +1,5 @@
 import { HashRouter as BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useState, createContext, useContext } from 'react'
+import { useState, useEffect, useRef, createContext, useContext } from 'react'
 import BottomNav from './components/BottomNav'
 import MapScreen from './screens/MapScreen'
 import RequestsScreen from './screens/RequestsScreen'
@@ -11,6 +11,7 @@ import AchievementsScreen from './screens/AchievementsScreen'
 import LoginScreen from './screens/LoginScreen'
 import { familyMembers } from './data/familyData'
 import TopBar from './components/TopBar'
+import { loadSharedState, saveSharedStateDebounced } from './services/sharedState'
 
 export const UserContext = createContext(null)
 export function useUser() { return useContext(UserContext) }
@@ -23,7 +24,6 @@ export default function App() {
   const [shelter, setShelter] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('familyapp_shelter') || '{}')
-      // נקה ערכים ישנים שסומנו active ללא since (פורמט ישן)
       const cleaned = {}
       for (const [k, v] of Object.entries(saved)) {
         cleaned[k] = (v?.active && !v?.since) ? { active: false } : v
@@ -52,13 +52,83 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem('familyapp_locations') || '{}') } catch { return {} }
   })
 
+  // ── ref לגישה למצב העדכני מתוך callbacks ──────────────────
+  const stateRef = useRef({ locations: {}, shelter: {}, statuses: {} })
+  useEffect(() => {
+    stateRef.current = { locations, shelter, statuses }
+  }, [locations, shelter, statuses])
+
+  // ── סנכרון ענן — טעינה בעלייה + polling כל 30 שניות ────────
+  useEffect(() => {
+    // טעינה ראשונית מהענן
+    loadSharedState().then(shared => {
+      if (!shared) {
+        // אין נתונים בענן — נדחוף את המצב המקומי (אם קיים)
+        const local = stateRef.current
+        if (Object.keys(local.locations).length > 0) {
+          syncToCloud(local)
+        }
+        return
+      }
+      // יש נתונים בענן — ממזגים (ענן גובר בקונפליקט)
+      if (shared.locations && Object.keys(shared.locations).length > 0) {
+        const merged = { ...stateRef.current.locations, ...shared.locations }
+        setLocations(merged)
+        try { localStorage.setItem('familyapp_locations', JSON.stringify(merged)) } catch {}
+      }
+      if (shared.shelter && Object.keys(shared.shelter).length > 0) {
+        const merged = { ...stateRef.current.shelter, ...shared.shelter }
+        setShelter(merged)
+        try { localStorage.setItem('familyapp_shelter', JSON.stringify(merged)) } catch {}
+      }
+      if (shared.statuses && Object.keys(shared.statuses).length > 0) {
+        const merged = { ...stateRef.current.statuses, ...shared.statuses }
+        setStatuses(merged)
+        try { localStorage.setItem('familyapp_statuses', JSON.stringify(merged)) } catch {}
+      }
+    })
+
+    // polling כל 30 שניות — כדי לראות שינויים של בני משפחה אחרים
+    const interval = setInterval(async () => {
+      const shared = await loadSharedState()
+      if (!shared) return
+      if (shared.locations) {
+        setLocations(prev => {
+          const merged = { ...prev, ...shared.locations }
+          try { localStorage.setItem('familyapp_locations', JSON.stringify(merged)) } catch {}
+          return merged
+        })
+      }
+      if (shared.shelter) {
+        setShelter(prev => {
+          const merged = { ...prev, ...shared.shelter }
+          try { localStorage.setItem('familyapp_shelter', JSON.stringify(merged)) } catch {}
+          return merged
+        })
+      }
+      if (shared.statuses) {
+        setStatuses(prev => {
+          const merged = { ...prev, ...shared.statuses }
+          try { localStorage.setItem('familyapp_statuses', JSON.stringify(merged)) } catch {}
+          return merged
+        })
+      }
+    }, 30000)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  // ── helper — שליחה לענן ────────────────────────────────────
+  function syncToCloud(overrides = {}) {
+    saveSharedStateDebounced({ ...stateRef.current, ...overrides })
+  }
+
   const saveLocations = (updated) => {
     setLocations(updated)
     try {
       localStorage.setItem('familyapp_locations', JSON.stringify(updated))
     } catch (e) {
       console.warn('שגיאה בשמירת מיקומים ל-localStorage:', e)
-      // ניסיון לפנות מקום – מנקים תמונות ומנסים שוב
       try {
         localStorage.removeItem('familyapp_photos')
         localStorage.setItem('familyapp_locations', JSON.stringify(updated))
@@ -66,12 +136,14 @@ export default function App() {
         console.warn('לא ניתן לשמור מיקומים גם אחרי ניקוי תמונות')
       }
     }
+    syncToCloud({ locations: updated })
   }
 
   const setMemberStatus = (memberId, statusKey) => {
     const updated = { ...statuses, [memberId]: statusKey }
     setStatuses(updated)
     localStorage.setItem('familyapp_statuses', JSON.stringify(updated))
+    syncToCloud({ statuses: updated })
   }
 
   const login = (member) => {
@@ -102,6 +174,7 @@ export default function App() {
     }
     setShelter(updated)
     localStorage.setItem('familyapp_shelter', JSON.stringify(updated))
+    syncToCloud({ shelter: updated })
   }
 
   const savePhoto = (memberId, base64) => {

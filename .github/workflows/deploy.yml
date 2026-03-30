@@ -30,7 +30,11 @@ jobs:
           ls data/*.json 2>/dev/null && cp data/*.json public/data/ && echo "✅ data copied" || echo "⚠️ no data yet"
 
       - run: npm ci
-      - run: npm run build
+
+      - name: Build with shared state token
+        run: npm run build
+        env:
+          VITE_GITHUB_TOKEN: ${{ secrets.SHARED_STATE_TOKEN }}
 
       - name: פריסה ל-gh-pages
         run: |
