@@ -13,7 +13,7 @@ const STATE_FILE  = 'data/shared-state.json'
 const PHOTOS_FILE = 'data/shared-photos.json'
 const RAW_BASE = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}`
 const API_BASE = `https://api.github.com/repos/${OWNER}/${REPO}/contents`
-const TOKEN  = import.meta.env.VITE_GITHUB_TOKEN || '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'
+const TOKEN  = import.meta.env.VITE_GITHUB_TOKEN || ''
 
 // ── קריאה גנרית (עם fallback ל-API) ─────────────────────
 async function loadFromGitHub(file) {
