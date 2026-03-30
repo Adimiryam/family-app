@@ -131,9 +131,13 @@
       "lng": 35.227
     }
   },
-  "shelter": {},
+  "shelter": {
+    "17": {
+      "active": false
+    }
+  },
   "statuses": {
     "17": "home"
   },
-  "updatedAt": "2026-03-30T15:41:18.040Z"
+  "updatedAt": "2026-03-30T15:41:20.735Z"
 }
