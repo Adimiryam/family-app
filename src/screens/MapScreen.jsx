@@ -4,7 +4,7 @@ import { useUser } from '../App'
 import { familyMembers, grandchildren, alertLevelConfig, WAR_START_DATE } from '../data/familyData'
 import { LOCALITIES, localityCoords, SPECIAL_BASE, DEFAULT_LOCATION } from '../data/israeliLocalities'
 import { getStatus } from '../data/statusConfig'
-import { fetchCurrentAlert, fetchAlertsByPeriod, fetchMeta } from '../services/pikudHaoref'
+import { fetchCurrentAlert, fetchAlertsByPeriod, fetchMeta, normalizeCity } from '../services/pikudHaoref'
 import { PERIODS, levelColors, levelRadius, calcSecurityLevel, formatDate, getHebrewDateParts, formatHebrewDate } from '../utils/mapUtils'
 import InlineLocationPicker from '../components/map/InlineLocationPicker'
 import EditLocationsModal from '../components/map/EditLocationsModal'
@@ -70,7 +70,7 @@ export default function MapScreen() {
   }, [])
 
   const cityAlertData = realData || {}
-  const heatCities = LOCALITIES.filter(c => cityAlertData[c.name])
+  const heatCities = LOCALITIES.filter(c => cityAlertData[normalizeCity(c.name)])
 
   const locations = contextLocations
   const saveLocations = contextSaveLocations
@@ -110,18 +110,19 @@ export default function MapScreen() {
 
   const shelterList = allMembers.filter(m => shelter[m.id]?.active)
 
-  const familyAlertCities = new Set(allPeople.filter(p => p.city).map(p => p.city))
-  const totalAlerts = [...familyAlertCities].reduce((s, city) => s + (cityAlertData[city]?.alerts || 0), 0)
+  const familyAlertCities = new Set(allPeople.filter(p => p.city).map(p => normalizeCity(p.city)))
+  const totalAlerts = [...familyAlertCities].reduce((s, nc) => s + (cityAlertData[nc]?.alerts || 0), 0)
 
   // ── נתונים לפי התקופה הנבחרת ──
   const currentUserCity = currentUser ? (locations[currentUser.id]?.city || null) : null
-  const familyCitiesUnique = [...new Set(allPeople.filter(p => p.city).map(p => p.city))]
+  const currentUserCityNorm = normalizeCity(currentUserCity)
+  const familyCitiesUnique = [...new Set(allPeople.filter(p => p.city).map(p => normalizeCity(p.city)))]
 
-  const alertsUser = currentUserCity ? (cityAlertData[currentUserCity]?.alerts || 0) : 0
-  const shelterMinutesUser = currentUserCity ? (cityAlertData[currentUserCity]?.shelterMinutes || 0) : 0
+  const alertsUser = currentUserCityNorm ? (cityAlertData[currentUserCityNorm]?.alerts || 0) : 0
+  const shelterMinutesUser = currentUserCityNorm ? (cityAlertData[currentUserCityNorm]?.shelterMinutes || 0) : 0
 
-  const alertsFamily = familyCitiesUnique.reduce((s, city) => s + (cityAlertData[city]?.alerts || 0), 0)
-  const shelterMinutesFamily = familyCitiesUnique.reduce((s, city) => s + (cityAlertData[city]?.shelterMinutes || 0), 0)
+  const alertsFamily = familyCitiesUnique.reduce((s, nc) => s + (cityAlertData[nc]?.alerts || 0), 0)
+  const shelterMinutesFamily = familyCitiesUnique.reduce((s, nc) => s + (cityAlertData[nc]?.shelterMinutes || 0), 0)
 
   const securityLevel = calcSecurityLevel(alertsUser, !loading && todayLoaded)
 
@@ -334,7 +335,7 @@ export default function MapScreen() {
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
           {showHeat && heatCities.map(city => {
-            const data = cityAlertData[city.name]
+            const data = cityAlertData[normalizeCity(city.name)]
             if (!data) return null
             return (
               <CircleMarker key={city.name} center={[city.lat, city.lng]}
