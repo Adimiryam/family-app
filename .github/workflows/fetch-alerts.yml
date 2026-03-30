@@ -4,6 +4,10 @@ on:
   schedule:
     - cron: '*/10 * * * *'
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fetch-alerts.yml'
 
 permissions:
   contents: write
@@ -33,12 +37,14 @@ jobs:
           node -e "
           const fs = require('fs');
 
+          // CORS proxies for bypassing geo-blocking from GitHub Actions
           const PROXIES = [
             url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
             url => 'https://corsproxy.io/?' + encodeURIComponent(url),
             url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
           ];
 
+          // Direct fetch with oref headers (in case GitHub IP works)
           const OREF_HEADERS = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Referer': 'https://www.oref.org.il/',
