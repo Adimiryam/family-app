@@ -107,7 +107,6 @@ export default function MapScreen() {
   ]
 
   const shelterList = allMembers.filter(m => shelter[m.id]?.active)
-  const securityLevel = calcSecurityLevel(todayData, todayLoaded)
 
   const familyAlertCities = new Set(allPeople.filter(p => p.city).map(p => p.city))
   const totalAlerts = [...familyAlertCities].reduce((s, city) => s + (cityAlertData[city]?.alerts || 0), 0)
@@ -123,6 +122,9 @@ export default function MapScreen() {
   // אזעקות ומ"מד לפי תקופה — עבור כל המשפחה
   const alertsFamily = familyCitiesUnique.reduce((s, city) => s + (cityAlertData[city]?.alerts || 0), 0)
   const shelterMinutesFamily = familyCitiesUnique.reduce((s, city) => s + (cityAlertData[city]?.shelterMinutes || 0), 0)
+
+  // מדד בטחון לפי העיר של המשתמש הנוכחי
+  const securityLevel = calcSecurityLevel(alertsUser, !loading && todayLoaded)
 
   // תווית תקופה
   const periodLabels = { today: '24 שעות', yesterday: 'אתמול', week: '7 ימים', sinceWar: 'מהמלחמה' }
