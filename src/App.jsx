@@ -11,7 +11,7 @@ import AchievementsScreen from './screens/AchievementsScreen'
 import LoginScreen from './screens/LoginScreen'
 import { familyMembers } from './data/familyData'
 import TopBar from './components/TopBar'
-import { loadSharedState, saveSharedStateDebounced } from './services/sharedState'
+import { loadSharedState, loadSharedPhotos, saveSharedStateDebounced, saveSharedPhotosDebounced } from './services/sharedState'
 
 export const UserContext = createContext(null)
 export function useUser() { return useContext(UserContext) }
@@ -60,17 +60,15 @@ export default function App() {
 
   // ── סנכרון ענן — טעינה בעלייה + polling כל 30 שניות ────────
   useEffect(() => {
-    // טעינה ראשונית מהענן
+    // טעינה ראשונית: מצב משותף (מיקומים + מקלט + סטטוס)
     loadSharedState().then(shared => {
       if (!shared) {
-        // אין נתונים בענן — נדחוף את המצב המקומי (אם קיים)
         const local = stateRef.current
         if (Object.keys(local.locations).length > 0) {
           syncToCloud(local)
         }
         return
       }
-      // יש נתונים בענן — ממזגים (ענן גובר בקונפליקט)
       if (shared.locations && Object.keys(shared.locations).length > 0) {
         const merged = { ...stateRef.current.locations, ...shared.locations }
         setLocations(merged)
@@ -88,7 +86,19 @@ export default function App() {
       }
     })
 
-    // polling כל 30 שניות — כדי לראות שינויים של בני משפחה אחרים
+    // טעינה ראשונית: תמונות (קובץ נפרד, כבד יותר)
+    loadSharedPhotos().then(shared => {
+      if (!shared || !shared.photos) return
+      if (Object.keys(shared.photos).length > 0) {
+        setPhotos(prev => {
+          const merged = { ...prev, ...shared.photos }
+          try { localStorage.setItem('familyapp_photos', JSON.stringify(merged)) } catch {}
+          return merged
+        })
+      }
+    })
+
+    // polling כל 30 שניות — מצב משותף
     const interval = setInterval(async () => {
       const shared = await loadSharedState()
       if (!shared) return
@@ -115,12 +125,30 @@ export default function App() {
       }
     }, 30000)
 
-    return () => clearInterval(interval)
+    // polling תמונות כל 2 דקות (פחות תכוף כי זה קובץ כבד)
+    const photosInterval = setInterval(async () => {
+      const shared = await loadSharedPhotos()
+      if (!shared || !shared.photos) return
+      setPhotos(prev => {
+        const merged = { ...prev, ...shared.photos }
+        try { localStorage.setItem('familyapp_photos', JSON.stringify(merged)) } catch {}
+        return merged
+      })
+    }, 120000)
+
+    return () => {
+      clearInterval(interval)
+      clearInterval(photosInterval)
+    }
   }, [])
 
-  // ── helper — שליחה לענן ────────────────────────────────────
+  // ── helpers — שליחה לענן ─────────────────────────────────
   function syncToCloud(overrides = {}) {
     saveSharedStateDebounced({ ...stateRef.current, ...overrides })
+  }
+
+  function syncPhotosToCloud(updatedPhotos) {
+    saveSharedPhotosDebounced(updatedPhotos)
   }
 
   const saveLocations = (updated) => {
@@ -182,6 +210,7 @@ export default function App() {
     setPhotos(updated)
     try { localStorage.setItem('familyapp_photos', JSON.stringify(updated)) }
     catch { console.warn('תמונה גדולה מדי לשמירה') }
+    syncPhotosToCloud(updated)
   }
 
   const shelterCount = Object.values(shelter).filter(s => s.active).length
