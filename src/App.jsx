@@ -11,7 +11,7 @@ import AchievementsScreen from './screens/AchievementsScreen'
 import LoginScreen from './screens/LoginScreen'
 import { familyMembers } from './data/familyData'
 import TopBar from './components/TopBar'
-import { loadSharedState, loadSharedPhotos, saveSharedStateDebounced, saveSharedPhotosDebounced } from './services/sharedState'
+import { loadSharedState, loadSharedPhotos, saveSharedStateDebounced, saveSharedPhotosDebounced, saveSharedPhotosImmediate } from './services/sharedState'
 
 export const UserContext = createContext(null)
 export function useUser() { return useContext(UserContext) }
@@ -89,11 +89,12 @@ export default function App() {
     // טעינה ראשונית: תמונות (קובץ נפרד, כבד יותר)
     loadSharedPhotos().then(shared => {
       if (!shared || !shared.photos) {
-        // ענן ריק — אם יש תמונות מקומיות, דוחפים אותן לענן
+        // ענן ריק — אם יש תמונות מקומיות, דוחפים אותן לענן מיד
         try {
           const localPhotos = JSON.parse(localStorage.getItem('familyapp_photos') || '{}')
           if (Object.keys(localPhotos).length > 0) {
-            syncPhotosToCloud(localPhotos)
+            console.log('[App] cloud photos empty, pushing local photos:', Object.keys(localPhotos).length)
+            saveSharedPhotosImmediate(localPhotos)
           }
         } catch {}
         return
