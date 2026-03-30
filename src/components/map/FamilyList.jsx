@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { alertLevelConfig } from '../../data/familyData'
 import { getStatus } from '../../data/statusConfig'
+import { normalizeCity } from '../../services/pikudHaoref'
 import InlineLocationPicker from './InlineLocationPicker'
 
 export default function FamilyList({ members, kids, cityAlertData, shelter, photos, statuses, editingId, setEditingId, handleInlineLocationSelect, setShowEdit, alertsUser, alertsFamily, currentUserCity, loading, shelterTimeLabelUser, shelterTimeLabelFamily, periodLabel, securityLevel, dataRangeLabel }) {
@@ -76,7 +77,8 @@ export default function FamilyList({ members, kids, cityAlertData, shelter, phot
       </div>
 
       {members.map(member => {
-        const cityData  = cityAlertData[member.city] || { alerts: 0, level: 'low' }
+        const nc = normalizeCity(member.city)
+        const cityData  = cityAlertData[nc] || { alerts: 0, level: 'low' }
         const cfg       = alertLevelConfig[cityData.level]
         const inShelter = shelter[member.id]?.active
         const photo     = photos[member.id]
@@ -143,7 +145,8 @@ export default function FamilyList({ members, kids, cityAlertData, shelter, phot
 
       <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, margin: '12px 0 8px' }}>הנכדים האהובים</div>
       {kids.map(child => {
-        const cityData = cityAlertData[child.city] || { alerts: 0, level: 'low' }
+        const nc = normalizeCity(child.city)
+        const cityData = cityAlertData[nc] || { alerts: 0, level: 'low' }
         const cfg      = alertLevelConfig[cityData.level]
         const isEditing = editingId === child.id
 
