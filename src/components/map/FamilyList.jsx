@@ -246,19 +246,19 @@ export default function FamilyList({ members, kids, cityAlertData, allTimeData, 
     <div
       ref={scrollRef}
       onScroll={onScroll}
-      style={{ flex: 1, overflow: 'auto', padding: '12px 14px' }}
+      style={{ flex: 1, overflow: 'auto', padding: '10px 14px' }}
     >
 
       {/* כפתור מעבר בין מצבים */}
       <div style={{
         display: 'flex', justifyContent: 'center', gap: 0,
-        marginBottom: 10, borderRadius: 10, overflow: 'hidden',
+        marginBottom: 8, borderRadius: 10, overflow: 'hidden',
         border: '1.5px solid #e2e8f0',
       }}>
         <button
           onClick={() => setViewMode('user')}
           style={{
-            flex: 1, padding: '7px 0', fontSize: 12, fontWeight: 700,
+            flex: 1, padding: '5px 0', fontSize: 11, fontWeight: 700,
             background: !isFamily ? '#1e40af' : 'white',
             color: !isFamily ? 'white' : '#64748b',
             border: 'none', cursor: 'pointer',
@@ -270,7 +270,7 @@ export default function FamilyList({ members, kids, cityAlertData, allTimeData, 
         <button
           onClick={() => setViewMode('family')}
           style={{
-            flex: 1, padding: '7px 0', fontSize: 12, fontWeight: 700,
+            flex: 1, padding: '5px 0', fontSize: 11, fontWeight: 700,
             background: isFamily ? '#1e40af' : 'white',
             color: isFamily ? 'white' : '#64748b',
             border: 'none', cursor: 'pointer',
@@ -282,25 +282,20 @@ export default function FamilyList({ members, kids, cityAlertData, allTimeData, 
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
+      {/* סטטיסטיקות מצומצמות */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
         {[
           { label: alertsLabel, value: loading ? '—' : alertsValue, icon: '🚨', color: '#dc2626', bg: '#fee2e2' },
-          { label: shelterLabel, value: loading ? 'טוען...' : shelterValue, icon: '🏠', color: '#7c3aed', bg: '#f5f3ff' },
-          { label: 'מדד בטחון',   value: securityLevel.label, icon: securityLevel.icon, color: securityLevel.color, bg: securityLevel.bg },
+          { label: shelterLabel, value: loading ? '...' : shelterValue, icon: '🏠', color: '#7c3aed', bg: '#f5f3ff' },
+          { label: 'מדד בטחון', value: securityLevel.label, icon: securityLevel.icon, color: securityLevel.color, bg: securityLevel.bg },
         ].map(s => (
-          <div key={s.label} style={{ background: s.bg, borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
-            <div style={{ fontSize: 18 }}>{s.icon}</div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: s.color }}>{s.value}</div>
-            <div style={{ fontSize: 9, color: s.color, opacity: 0.8 }}>{s.label}</div>
+          <div key={s.label} style={{ flex: 1, background: s.bg, borderRadius: 8, padding: '5px 4px', textAlign: 'center' }}>
+            <div style={{ fontSize: 12, lineHeight: 1 }}>{s.icon}</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: s.color, lineHeight: 1.2 }}>{s.value}</div>
+            <div style={{ fontSize: 8, color: s.color, opacity: 0.8, lineHeight: 1.1 }}>{s.label}</div>
           </div>
         ))}
       </div>
-
-      {dataRangeLabel && (
-        <div style={{ textAlign: 'center', fontSize: 10, color: '#94a3b8', marginBottom: 10, fontWeight: 600 }}>
-          📊 {dataRangeLabel}
-        </div>
-      )}
 
       {/* 🏆 טבלת דירוג אזעקות */}
       {allTimeData && Object.keys(allTimeData).length > 0 && (

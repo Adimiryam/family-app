@@ -209,57 +209,43 @@ export default function MapScreen() {
       )}
 
       {shelterList.length > 0 && (
-        <div className="shelter-pulse" style={{ background: 'linear-gradient(90deg, #dc2626, #b91c1c)', color: 'white', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          <span style={{ fontSize: 20 }}>🚨</span>
+        <div className="shelter-pulse" style={{ background: 'linear-gradient(90deg, #dc2626, #b91c1c)', color: 'white', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <span style={{ fontSize: 18 }}>🚨</span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 800 }}>{shelterList.map(m => m.name).join(', ')} — במקלט כרגע!</div>
-            <div style={{ fontSize: 11, opacity: 0.9 }}>{shelterList.length === 1 ? 'בן/בת משפחה אחד/ת' : `${shelterList.length} בני משפחה`} מדווחים על שהייה במקלט</div>
+            <div style={{ fontSize: 12, fontWeight: 800 }}>{shelterList.map(m => m.name).join(', ')} — במקלט כרגע!</div>
           </div>
         </div>
       )}
 
-      {currentUser && (
-        <button onClick={() => toggleShelter(currentUser.id, !shelter[currentUser.id]?.active)} className={shelter[currentUser.id]?.active ? 'shelter-pulse' : ''} style={{ margin: '6px 12px', padding: '10px 14px', borderRadius: 12, flexShrink: 0, background: shelter[currentUser.id]?.active ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'linear-gradient(135deg, #f1f5f9, #e2e8f0)', color: shelter[currentUser.id]?.active ? 'white' : '#475569', fontSize: 14, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, border: shelter[currentUser.id]?.active ? 'none' : '1.5px solid #cbd5e1', cursor: 'pointer' }}>
-          <span style={{ fontSize: 18 }}>{shelter[currentUser.id]?.active ? '🚨' : '🏠'}</span>
-          {shelter[currentUser.id]?.active ? 'אני במקלט כרגע!' : 'לחץ/י כשאת/ה במקלט'}
-        </button>
-      )}
-
-      <div style={{ padding: '8px 14px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', flexShrink: 0, direction: 'rtl', textAlign: 'center' }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>
+      <div style={{ padding: '5px 14px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', flexShrink: 0, direction: 'rtl', textAlign: 'center' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#1e293b' }}>
           {now.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · {hebrewDateStr}
         </div>
-        {greeting && <div style={{ fontSize: 16, fontWeight: 800, color: shabbatNow ? '#7c3aed' : '#d97706', background: shabbatNow ? '#f5f3ff' : '#fffbeb', padding: '4px 16px', borderRadius: 20, display: 'inline-block', margin: '4px 0' }}>{greeting}</div>}
+        {greeting && <div style={{ fontSize: 14, fontWeight: 800, color: shabbatNow ? '#7c3aed' : '#d97706', background: shabbatNow ? '#f5f3ff' : '#fffbeb', padding: '2px 14px', borderRadius: 20, display: 'inline-block', margin: '2px 0' }}>{greeting}</div>}
       </div>
 
-      <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #1e40af)', padding: '12px 16px', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+      <div style={{ background: 'linear-gradient(135deg, #1e3a8a, #1e40af)', padding: '8px 14px', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div>
-          <h1 style={{ fontSize: 19, fontWeight: 800, marginBottom: 1 }}>שלום, {currentUser?.name} 👋</h1>
-          <p style={{ fontSize: 11, opacity: 0.8, marginBottom: 0 }}>🗺️ מפה ומדד הבטחון · נתוני פיקוד העורף</p>
-          <div style={{ fontSize: 10, opacity: 0.7, marginTop: 2, display: 'flex', gap: 12 }}>
+          <h1 style={{ fontSize: 16, fontWeight: 800, marginBottom: 0 }}>שלום, {currentUser?.name} 👋</h1>
+          <div style={{ fontSize: 9, opacity: 0.7, display: 'flex', gap: 10 }}>
             <span>⚔️ חרבות ברזל: יום {daysSinceSwords}</span>
             <span>🦁 שאגת הארי: יום {daysSinceRoar}</span>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {isAdmin && (
-            <button onClick={() => setShowEdit(true)} style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 10, padding: '7px 12px', color: 'white', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer' }}>📍 עדכן מיקום</button>
+            <button onClick={() => setShowEdit(true)} style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 8, padding: '5px 10px', color: 'white', fontSize: 11, fontWeight: 700, border: 'none', cursor: 'pointer' }}>📍 עדכן מיקום</button>
           )}
-          <div style={{ background: securityLevel.bg, borderRadius: 12, padding: '6px 12px', textAlign: 'center' }}>
-            <div style={{ fontSize: 9, color: securityLevel.color, fontWeight: 700 }}>מדד בטחון</div>
-            <div style={{ fontSize: 20 }}>{securityLevel.icon}</div>
-            <div style={{ fontSize: 11, fontWeight: 800, color: securityLevel.color }}>{securityLevel.label}</div>
-          </div>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 6, padding: '8px 14px', background: 'white', borderBottom: '1px solid #e2e8f0', overflowX: 'auto', flexShrink: 0 }}>
+      <div style={{ display: 'flex', gap: 6, padding: '6px 14px', background: 'white', borderBottom: '1px solid #e2e8f0', overflowX: 'auto', flexShrink: 0 }}>
         {PERIODS.map(p => (
-          <button key={p.key} onClick={() => setPeriod(p.key)} style={{ padding: '6px 12px', borderRadius: 20, whiteSpace: 'nowrap', background: period === p.key ? '#1e40af' : '#f1f5f9', color: period === p.key ? 'white' : '#475569', fontSize: 12, fontWeight: period === p.key ? 700 : 500, border: period === p.key ? 'none' : '1px solid #e2e8f0', flexShrink: 0, cursor: 'pointer' }}>
+          <button key={p.key} onClick={() => setPeriod(p.key)} style={{ padding: '5px 10px', borderRadius: 20, whiteSpace: 'nowrap', background: period === p.key ? '#1e40af' : '#f1f5f9', color: period === p.key ? 'white' : '#475569', fontSize: 11, fontWeight: period === p.key ? 700 : 500, border: period === p.key ? 'none' : '1px solid #e2e8f0', flexShrink: 0, cursor: 'pointer' }}>
             {p.icon} {p.label}{p.key === 'all' && dataRangeLabel ? ` (${dataRangeLabel})` : ''}
           </button>
         ))}
-        <div style={{ marginRight: 'auto', fontSize: 10, display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, paddingRight: 4, color: loading ? '#94a3b8' : dataSource === 'real' ? '#16a34a' : '#d97706', fontWeight: 600 }}>
+        <div style={{ marginRight: 'auto', fontSize: 9, display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, paddingRight: 4, color: loading ? '#94a3b8' : dataSource === 'real' ? '#16a34a' : '#d97706', fontWeight: 600 }}>
           {loading ? '⏳ טוען...' : dataSource === 'real' ? '✅ פיקוד העורף' : '⚠️ נתונים מדומים'}
         </div>
       </div>
