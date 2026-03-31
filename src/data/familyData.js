@@ -33,8 +33,8 @@ export const grandchildren = [
   { id: 108, name: 'נווה',            emoji: '👧', parents: 'יהב ועמית'   },
   { id: 109, name: 'דרור',            emoji: '👧', parents: 'רועי וצביה'  },
   { id: 110, name: 'שחר',             emoji: '👧', parents: 'בועז וצפיה'  },
+  { id: 202, name: 'העוברון של עטרה', emoji: '🤰', parents: 'עטרה ויוסף', unborn: true, dueDate: '2026-04-28' },
   { id: 201, name: 'העוברית של עינת', emoji: '🤰', parents: 'עינת ורז', unborn: true, dueDate: '2026-09-10' },
-  { id: 202, name: 'העוברון של עטרה', emoji: '🤰', parents: 'עטרה ויוסף', unborn: true, dueDate: '2026-05-07' },
 ]
 
 // ────────────────────────────────────────────────────────────
@@ -46,7 +46,6 @@ export const WAR_START_DATE = '28/02/2026'
 export const SWORDS_OF_IRON_DATE = '2023-10-07' // חרבות ברזל
 export const ROAR_OF_LION_DATE = '2026-02-28' // שאגת הארי (same as WAR_START_DATE)
 
-// עוזר לחישוב רמה לפי מספר אזעקות
 function level(n) {
   if (n === 0) return 'low'
   if (n <= 3)  return 'low'
@@ -58,7 +57,6 @@ function mk(alerts, minsPerAlert = 3) {
   return { alerts, shelterMinutes: alerts * minsPerAlert, level: level(alerts) }
 }
 
-// אין נתונים מדומים — הכל מגיע מפיקוד העורף בלבד
 export const cityAlertDataByPeriod = { today: {}, yesterday: {}, week: {}, sinceWar: {} }
 
 export const cityAlertData = {}
@@ -95,9 +93,6 @@ export const initialRequests = [
   },
 ]
 
-// ============================================================
-// הישגים
-// ============================================================
 export const initialAchievements = [
   { id: 1, text: 'נווה נגמלה מחיתולים! 🎉', author: 'יהב', likes: ['עדי', 'יעל'], createdAt: '2026-03-15' },
   { id: 2, text: 'דרור התחילה ללכת! 👣', author: 'צביה', likes: ['נועם', 'יעל', 'עדי'], createdAt: '2026-03-10' },
@@ -105,9 +100,6 @@ export const initialAchievements = [
   { id: 4, text: 'ברכות לטליה לרגל חזרתו של אורי לארץ! 🇮🇱🎊', author: 'עדי', likes: ['נועם', 'יעל', 'רועי', 'צביה', 'בועז'], createdAt: '2026-03-25' },
 ]
 
-// ============================================================
-// אירועים קרובים
-// ============================================================
 export const initialEvents = [
   {
     id: 1, title: 'שבת משפחתית 🕍', date: '05/04/2026', time: '12:00',
