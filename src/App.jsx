@@ -17,10 +17,10 @@ export const UserContext = createContext(null)
 export function useUser() { return useContext(UserContext) }
 
 export default function App() {
-  // ── משתמש נוכחי — תמיד מתחיל כ-null, חובה לבחור בכל כניסה ────────
+  // משתמש נוכחי — תמיד מתחיל כ-null, חובה לבחור בכל כניסה
   const [currentUser, setCurrentUser] = useState(null)
 
-  // ── סטטוס מקלט: { [memberId]: { active: bool, since: isoString } } ──
+  // סטטוס מקלט: { [memberId]: { active: bool, since: isoString } }
   const [shelter, setShelter] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('familyapp_shelter') || '{}')
@@ -32,33 +32,33 @@ export default function App() {
     } catch { return {} }
   })
 
-  // ── היסטוריית מקלט: { [memberId]: { date: 'YYYY-MM-DD', minutes: number } } ──
+  // היסטוריית מקלט: { [memberId]: { date: 'YYYY-MM-DD', minutes: number } }
   const [shelterHistory, setShelterHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem('familyapp_shelter_history') || '{}') } catch { return {} }
   })
 
-  // ── תמונות: { [memberId]: base64String } ─────────────────
+  // תמונות: { [memberId]: base64String }
   const [photos, setPhotos] = useState(() => {
     try { return JSON.parse(localStorage.getItem('familyapp_photos') || '{}') } catch { return {} }
   })
 
-  // ── סטטוס: { [memberId]: statusKey } ─────────────────────
+  // סטטוס: { [memberId]: statusKey }
   const [statuses, setStatuses] = useState(() => {
     try { return JSON.parse(localStorage.getItem('familyapp_statuses') || '{}') } catch { return {} }
   })
 
-  // ── מיקומים: { [memberId]: { city, lat, lng, updatedAt } } ───
+  // מיקומים: { [memberId]: { city, lat, lng, updatedAt } }
   const [locations, setLocations] = useState(() => {
     try { return JSON.parse(localStorage.getItem('familyapp_locations') || '{}') } catch { return {} }
   })
 
-  // ── ref לגישה למצב העדכני מתוך callbacks ──────────────────
+  // ref לגישה למצב העדכני מתוך callbacks
   const stateRef = useRef({ locations: {}, shelter: {}, statuses: {}, shelterHistory: {} })
   useEffect(() => {
     stateRef.current = { locations, shelter, statuses, shelterHistory }
   }, [locations, shelter, statuses, shelterHistory])
 
-  // ── סנכרון ענן — טעינה בעלייה + polling כל 30 שניות ────────
+  // סנכרון ענן — טעינה בעלייה + polling כל 30 שניות
   useEffect(() => {
     // טעינה ראשונית: מצב משותף (מיקומים + מקלט + סטטוסים + היסטוריית מקלט)
     loadSharedState().then(shared => {
@@ -171,7 +171,7 @@ export default function App() {
     }
   }, [])
 
-  // ── כיבוי אוטומטי של מקלט אחרי 10 דקות ───────────────────────
+  // כיבוי אוטומטי של מקלט אחרי 10 דקות
   useEffect(() => {
     const checkInterval = setInterval(() => {
       const now = Date.now()
@@ -206,12 +206,12 @@ export default function App() {
     return () => clearInterval(checkInterval)
   }, [])
 
-  // ── helpers — שליחה לענן ─────────────────────────────────────
+  // helpers — שליחה לענן
   function syncToCloud(overrides = {}) {
     saveSharedStateDebounced({ ...stateRef.current, ...overrides })
   }
 
-  // שמירה מיידית לענן — למקלט ודברים קריטיים
+  // שמירה מיידית לענן — למקלט, מיקומים ודברים קריטיים
   function syncToCloudImmediate(overrides = {}) {
     saveSharedStateImmediate({ ...stateRef.current, ...overrides })
   }
@@ -233,14 +233,15 @@ export default function App() {
         console.warn('לא ניתן לשמור מיקומים גם אחרי ניקוי תמונות')
       }
     }
-    syncToCloud({ locations: updated })
+    // שמירה מיידית לענן — מיקום הוא קריטי, לא debounce!
+    syncToCloudImmediate({ locations: updated })
   }
 
   const setMemberStatus = (memberId, statusKey) => {
     const updated = { ...statuses, [memberId]: statusKey }
     setStatuses(updated)
     localStorage.setItem('familyapp_statuses', JSON.stringify(updated))
-    syncToCloud({ statuses: updated })
+    syncToCloudImmediate({ statuses: updated })
   }
 
   const login = (member) => {
