@@ -4,7 +4,141 @@ import { getStatus } from '../../data/statusConfig'
 import { normalizeCity } from '../../services/pikudHaoref'
 import InlineLocationPicker from './InlineLocationPicker'
 
-export default function FamilyList({ members, kids, cityAlertData, shelter, photos, statuses, editingId, setEditingId, handleInlineLocationSelect, setShowEdit, alertsUser, alertsFamily, currentUserCity, loading, shelterTimeLabelUser, shelterTimeLabelFamily, periodLabel, securityLevel, dataRangeLabel, onScroll, onMemberClick, focusedMemberId, scrollRef, currentUserId, isAdmin }) {
+function Leaderboard({ members, allTimeData, photos }) {
+  // בונים דירוג לפי סה"כ אזעקות בעיר של כל בן משפחה
+  const ranked = members
+    .filter(m => m.city)
+    .map(m => {
+      const nc = normalizeCity(m.city)
+      const data = allTimeData[nc] || { alerts: 0 }
+      return { ...m, totalAlerts: data.alerts, shelterMinutes: data.shelterMinutes || 0 }
+    })
+    .sort((a, b) => b.totalAlerts - a.totalAlerts)
+
+  if (ranked.length === 0 || ranked[0].totalAlerts === 0) return null
+
+  const medalColors = ['#FFD700', '#C0C0C0', '#CD7F32']
+  const medalEmojis = ['🥇', '🥈', '🥉']
+
+  return (
+    <div style={{
+      background: 'white',
+      borderRadius: 14,
+      marginBottom: 14,
+      overflow: 'hidden',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+    }}>
+      {/* כותרת */}
+      <div style={{
+        background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+        padding: '10px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+      }}>
+        <span style={{ fontSize: 22 }}>🏆</span>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 800, color: 'white' }}>טבלת דירוג אזעקות</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)' }}>לפי סה"כ אזעקות בעיר (כל הנתונים)</div>
+        </div>
+      </div>
+
+      {/* רשימת דירוג */}
+      <div style={{ padding: '8px 12px' }}>
+        {ranked.map((m, idx) => {
+          const isFirst = idx === 0
+          const isTop3 = idx < 3
+          const photo = photos[m.id]
+
+          return (
+            <div key={m.id} style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '8px 6px',
+              borderBottom: idx < ranked.length - 1 ? '1px solid #f1f5f9' : 'none',
+              background: isFirst ? '#fffbeb' : 'transparent',
+              borderRadius: isFirst ? 10 : 0,
+              marginBottom: isFirst ? 4 : 0,
+            }}>
+              {/* מיקום / מדליה */}
+              <div style={{
+                width: 28,
+                textAlign: 'center',
+                fontSize: isTop3 ? 18 : 13,
+                fontWeight: 800,
+                color: isTop3 ? medalColors[idx] : '#94a3b8',
+                flexShrink: 0,
+              }}>
+                {isTop3 ? medalEmojis[idx] : idx + 1}
+              </div>
+
+              {/* תמונה */}
+              <div style={{
+                width: isFirst ? 40 : 32,
+                height: isFirst ? 40 : 32,
+                borderRadius: '50%',
+                overflow: 'hidden',
+                border: isFirst ? '3px solid #f59e0b' : '2px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#f1f5f9',
+                fontSize: isFirst ? 18 : 14,
+                flexShrink: 0,
+                position: 'relative',
+              }}>
+                {photo
+                  ? <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : m.emoji
+                }
+              </div>
+
+              {/* כתר למקום ראשון */}
+              {isFirst && (
+                <span style={{ fontSize: 16, marginRight: -6, marginLeft: -4 }}>👑</span>
+              )}
+
+              {/* שם + עיר */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontWeight: isFirst ? 800 : 700,
+                  fontSize: isFirst ? 14 : 13,
+                  color: '#1e293b',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}>
+                  {m.name}
+                </div>
+                <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                  📍 {m.city}
+                </div>
+              </div>
+
+              {/* מספר אזעקות */}
+              <div style={{
+                textAlign: 'center',
+                flexShrink: 0,
+              }}>
+                <div style={{
+                  fontSize: isFirst ? 18 : 15,
+                  fontWeight: 800,
+                  color: isFirst ? '#dc2626' : m.totalAlerts > 0 ? '#f59e0b' : '#94a3b8',
+                }}>
+                  {m.totalAlerts}
+                </div>
+                <div style={{ fontSize: 9, color: '#94a3b8' }}>אזעקות</div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export default function FamilyList({ members, kids, cityAlertData, allTimeData, shelter, photos, statuses, editingId, setEditingId, handleInlineLocationSelect, setShowEdit, alertsUser, alertsFamily, currentUserCity, loading, shelterTimeLabelUser, shelterTimeLabelFamily, periodLabel, securityLevel, dataRangeLabel, onScroll, onMemberClick, focusedMemberId, scrollRef, currentUserId, isAdmin }) {
   const [viewMode, setViewMode] = useState('user')
 
   const isFamily = viewMode === 'family'
@@ -166,6 +300,11 @@ export default function FamilyList({ members, kids, cityAlertData, shelter, phot
         <div style={{ textAlign: 'center', fontSize: 10, color: '#94a3b8', marginBottom: 10, fontWeight: 600 }}>
           📊 {dataRangeLabel}
         </div>
+      )}
+
+      {/* 🏆 טבלת דירוג אזעקות */}
+      {allTimeData && Object.keys(allTimeData).length > 0 && (
+        <Leaderboard members={members} allTimeData={allTimeData} photos={photos} />
       )}
 
       <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, marginBottom: 8 }}>לחץ על בן משפחה למיקוד במפה</div>

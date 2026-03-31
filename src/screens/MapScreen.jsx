@@ -49,6 +49,7 @@ export default function MapScreen() {
   const [dataSource, setDataSource] = useState('mock')
   const [todayData, setTodayData] = useState({})
   const [todayLoaded, setTodayLoaded] = useState(false)
+  const [allTimeData, setAllTimeData] = useState({})
   const [editingId, setEditingId] = useState(null)
   const [dataMeta, setDataMeta] = useState(null)
   const [mapCollapsed, setMapCollapsed] = useState(false)
@@ -78,6 +79,7 @@ export default function MapScreen() {
 
   useEffect(() => {
     fetchAlertsByPeriod('today').then(r => { setTodayData(r.data); setTodayLoaded(true) })
+    fetchAlertsByPeriod('all').then(r => { setAllTimeData(r.data) })
     fetchMeta().then(meta => { if (meta) setDataMeta(meta) })
   }, [])
 
@@ -317,7 +319,7 @@ export default function MapScreen() {
         </div>
       )}
 
-      <FamilyList members={membersData} kids={kidsData} cityAlertData={cityAlertData} shelter={shelter} photos={photos} statuses={statuses} editingId={editingId} setEditingId={setEditingId} handleInlineLocationSelect={handleInlineLocationSelect} setShowEdit={setShowEdit} alertsUser={alertsUser} alertsFamily={alertsFamily} currentUserCity={currentUserCity} loading={loading} shelterTimeLabelUser={shelterTimeLabelUser} shelterTimeLabelFamily={shelterTimeLabelFamily} periodLabel={periodLabel} securityLevel={securityLevel} dataRangeLabel={dataRangeLabel} onScroll={handleFamilyScroll} onMemberClick={handleMemberClick} focusedMemberId={focusedMemberId} scrollRef={familyListRef} currentUserId={currentUser?.id} isAdmin={isAdmin} />
+      <FamilyList members={membersData} kids={kidsData} cityAlertData={cityAlertData} allTimeData={allTimeData} shelter={shelter} photos={photos} statuses={statuses} editingId={editingId} setEditingId={setEditingId} handleInlineLocationSelect={handleInlineLocationSelect} setShowEdit={setShowEdit} alertsUser={alertsUser} alertsFamily={alertsFamily} currentUserCity={currentUserCity} loading={loading} shelterTimeLabelUser={shelterTimeLabelUser} shelterTimeLabelFamily={shelterTimeLabelFamily} periodLabel={periodLabel} securityLevel={securityLevel} dataRangeLabel={dataRangeLabel} onScroll={handleFamilyScroll} onMemberClick={handleMemberClick} focusedMemberId={focusedMemberId} scrollRef={familyListRef} currentUserId={currentUser?.id} isAdmin={isAdmin} />
 
       {showEdit && isAdmin && (
         <EditLocationsModal
