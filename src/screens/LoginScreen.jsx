@@ -1,11 +1,20 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useUser } from '../App'
 import { familyMembers, grandchildren } from '../data/familyData'
 
 export default function LoginScreen() {
   const { login } = useUser()
+  const navigate = useNavigate()
   const [selected, setSelected] = useState(null)
   const [tab, setTab] = useState('adults')
+
+  const handleLogin = () => {
+    if (!selected) return
+    login(selected)
+    // תמיד עוברים למסך הבית (מפה) אחרי כניסה
+    navigate('/map')
+  }
 
   const isSelected = (p) => selected?.id === p.id
 
@@ -95,7 +104,7 @@ export default function LoginScreen() {
 
         {/* כפתור כניסה */}
         <button
-          onClick={() => selected && login(selected)}
+          onClick={handleLogin}
           disabled={!selected}
           style={{
             width: '100%', padding: '14px', borderRadius: 12,

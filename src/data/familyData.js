@@ -22,16 +22,17 @@ export const familyMembers = [
   { id: 16, name: 'טליה',     role: 'צבא',      military: true,  emoji: '🪖'   },
 ]
 
+// נכדים מסודרים לפי גיל (מהגדול לקטן)
 export const grandchildren = [
-  { id: 104, name: 'עברי',            emoji: '👦', parents: 'רועי וצביה'  },
-  { id: 109, name: 'דרור',            emoji: '👧', parents: 'רועי וצביה'  },
-  { id: 105, name: 'שגיא',            emoji: '👦', parents: 'בועז וצפיה'  },
-  { id: 110, name: 'שחר',             emoji: '👧', parents: 'בועז וצפיה'  },
   { id: 102, name: 'דריה',            emoji: '👧', parents: 'עינת ורז'    },
   { id: 103, name: 'שיר ציון',        emoji: '👧', parents: 'עינת ורז'    },
+  { id: 104, name: 'עברי',            emoji: '👦', parents: 'רועי וצביה'  },
+  { id: 105, name: 'שגיא',            emoji: '👦', parents: 'בועז וצפיה'  },
   { id: 106, name: 'עומר',            emoji: '👧', parents: 'עינת ורז'    },
   { id: 107, name: 'אלה',             emoji: '👧', parents: 'עטרה ויוסף'  },
   { id: 108, name: 'נווה',            emoji: '👧', parents: 'יהב ועמית'   },
+  { id: 109, name: 'דרור',            emoji: '👧', parents: 'רועי וצביה'  },
+  { id: 110, name: 'שחר',             emoji: '👧', parents: 'בועז וצפיה'  },
   { id: 201, name: 'העוברית של עינת', emoji: '🤰', parents: 'עינת ורז', unborn: true, dueDate: '2026-09-10' },
   { id: 202, name: 'העוברון של עטרה', emoji: '🤰', parents: 'עטרה ויוסף', unborn: true, dueDate: '2026-05-07' },
 ]
