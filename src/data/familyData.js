@@ -32,7 +32,7 @@ export const grandchildren = [
   { id: 106, name: 'עומר',            emoji: '👧', parents: 'עינת ורז'    },
   { id: 107, name: 'אלה',             emoji: '👧', parents: 'עטרה ויוסף'  },
   { id: 108, name: 'נווה',            emoji: '👧', parents: 'יהב ועמית'   },
-  { id: 201, name: 'העוברון של עינת', emoji: '🤰', parents: 'עינת ורז', unborn: true, dueDate: '2026-09-10' },
+  { id: 201, name: 'עוברית',          emoji: '🤰', parents: 'עינת ורז', unborn: true, dueDate: '2026-09-10' },
   { id: 202, name: 'העוברון של עטרה', emoji: '🤰', parents: 'עטרה ויוסף', unborn: true, dueDate: '2026-05-07' },
 ]
 
