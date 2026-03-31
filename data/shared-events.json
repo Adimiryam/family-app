@@ -10,7 +10,9 @@
       "color": "#be185d",
       "id": 1774561027620,
       "tasks": [],
-      "attending": [],
+      "attending": [
+        "עמית"
+      ],
       "notAttending": []
     },
     {
@@ -126,5 +128,5 @@
       "emoji": "🕍"
     }
   ],
-  "updatedAt": "2026-03-31T07:24:06.504Z"
+  "updatedAt": "2026-03-31T07:38:51.192Z"
 }
