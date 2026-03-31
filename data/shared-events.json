@@ -10,9 +10,7 @@
       "color": "#be185d",
       "id": 1774561027620,
       "tasks": [],
-      "attending": [
-        "עטרה"
-      ],
+      "attending": [],
       "notAttending": []
     },
     {
@@ -72,7 +70,9 @@
         {
           "id": 6,
           "name": "תיאום הסעות",
-          "assignedTo": [],
+          "assignedTo": [
+            "עטרה"
+          ],
           "slots": 1
         }
       ],
@@ -126,5 +126,5 @@
       "emoji": "🕍"
     }
   ],
-  "updatedAt": "2026-03-31T07:23:04.085Z"
+  "updatedAt": "2026-03-31T07:24:06.504Z"
 }
