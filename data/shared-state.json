@@ -159,7 +159,8 @@
   "statuses": {
     "10": "home",
     "11": "trip",
-    "17": "home"
+    "17": "home",
+    "104": "inlaw"
   },
   "shelterHistory": {
     "1": {
@@ -179,5 +180,5 @@
       "minutes": 0
     }
   },
-  "updatedAt": "2026-03-30T17:23:18.695Z"
+  "updatedAt": "2026-03-31T02:49:49.990Z"
 }
