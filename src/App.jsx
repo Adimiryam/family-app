@@ -52,15 +52,20 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem('familyapp_locations') || '{}') } catch { return {} }
   })
 
+  // היסטוריית מיקומים: { [memberId]: ["ירושלים", "אשדוד", ...] } — ערים קודמות
+  const [locationHistory, setLocationHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('familyapp_location_history') || '{}') } catch { return {} }
+  })
+
   // ref לגישה למצב העדכני מתוך callbacks
-  const stateRef = useRef({ locations: {}, shelter: {}, statuses: {}, shelterHistory: {} })
+  const stateRef = useRef({ locations: {}, shelter: {}, statuses: {}, shelterHistory: {}, locationHistory: {} })
   useEffect(() => {
-    stateRef.current = { locations, shelter, statuses, shelterHistory }
-  }, [locations, shelter, statuses, shelterHistory])
+    stateRef.current = { locations, shelter, statuses, shelterHistory, locationHistory }
+  }, [locations, shelter, statuses, shelterHistory, locationHistory])
 
   // סנכרון ענן — טעינה בעלייה + polling כל 30 שניות
   useEffect(() => {
-    // טעינה ראשונית: מצב משותף (מיקומים + מקלט + סטטוסים + היסטוריית מקלט)
+    // טעינה ראשונית: מצב משותף
     loadSharedState().then(shared => {
       if (!shared) {
         const local = stateRef.current
@@ -88,6 +93,18 @@ export default function App() {
         const merged = { ...stateRef.current.shelterHistory, ...shared.shelterHistory }
         setShelterHistory(merged)
         try { localStorage.setItem('familyapp_shelter_history', JSON.stringify(merged)) } catch {}
+      }
+      if (shared.locationHistory && Object.keys(shared.locationHistory).length > 0) {
+        // מיזוג היסטוריית מיקומים — איחוד מערים לכל משתמש
+        const localHist = stateRef.current.locationHistory || {}
+        const merged = { ...localHist }
+        for (const [memberId, cities] of Object.entries(shared.locationHistory)) {
+          const localCities = merged[memberId] || []
+          const allCities = [...new Set([...localCities, ...cities])]
+          merged[memberId] = allCities
+        }
+        setLocationHistory(merged)
+        try { localStorage.setItem('familyapp_location_history', JSON.stringify(merged)) } catch {}
       }
     })
 
@@ -152,6 +169,17 @@ export default function App() {
           return merged
         })
       }
+      if (shared.locationHistory) {
+        setLocationHistory(prev => {
+          const merged = { ...prev }
+          for (const [memberId, cities] of Object.entries(shared.locationHistory)) {
+            const localCities = merged[memberId] || []
+            merged[memberId] = [...new Set([...localCities, ...cities])]
+          }
+          try { localStorage.setItem('familyapp_location_history', JSON.stringify(merged)) } catch {}
+          return merged
+        })
+      }
     }, 30000)
 
     // polling תמונות כל 2 דקות (פחות תכוף כי זה קובץ כבד)
@@ -198,7 +226,6 @@ export default function App() {
         setShelterHistory(currentHistory)
         try { localStorage.setItem('familyapp_shelter', JSON.stringify(currentShelter)) } catch {}
         try { localStorage.setItem('familyapp_shelter_history', JSON.stringify(currentHistory)) } catch {}
-        // שמירה מיידית לענן — מקלט הוא קריטי
         saveSharedStateImmediate({ ...stateRef.current, shelter: currentShelter, shelterHistory: currentHistory })
       }
     }, 30000)
@@ -211,7 +238,6 @@ export default function App() {
     saveSharedStateDebounced({ ...stateRef.current, ...overrides })
   }
 
-  // שמירה מיידית לענן — למקלט, מיקומים ודברים קריטיים
   function syncToCloudImmediate(overrides = {}) {
     saveSharedStateImmediate({ ...stateRef.current, ...overrides })
   }
@@ -221,6 +247,29 @@ export default function App() {
   }
 
   const saveLocations = (updated) => {
+    // בדיקה אם מישהו שינה עיר — שומרים את העיר הקודמת בהיסטוריה
+    const currentLocations = stateRef.current.locations || {}
+    const currentLocHistory = { ...(stateRef.current.locationHistory || {}) }
+    let historyChanged = false
+
+    for (const [memberId, newLoc] of Object.entries(updated)) {
+      const oldCity = currentLocations[memberId]?.city
+      const newCity = newLoc?.city
+      // אם הייתה עיר קודמת והיא שונה מהחדשה — שומרים
+      if (oldCity && newCity && oldCity !== newCity) {
+        const prevCities = currentLocHistory[memberId] || []
+        if (!prevCities.includes(oldCity)) {
+          currentLocHistory[memberId] = [...prevCities, oldCity]
+          historyChanged = true
+        }
+      }
+    }
+
+    if (historyChanged) {
+      setLocationHistory(currentLocHistory)
+      try { localStorage.setItem('familyapp_location_history', JSON.stringify(currentLocHistory)) } catch {}
+    }
+
     setLocations(updated)
     try {
       localStorage.setItem('familyapp_locations', JSON.stringify(updated))
@@ -234,7 +283,7 @@ export default function App() {
       }
     }
     // שמירה מיידית לענן — מיקום הוא קריטי, לא debounce!
-    syncToCloudImmediate({ locations: updated })
+    syncToCloudImmediate({ locations: updated, locationHistory: currentLocHistory })
   }
 
   const setMemberStatus = (memberId, statusKey) => {
@@ -256,7 +305,6 @@ export default function App() {
     const now = new Date()
     const todayStr = now.toISOString().split('T')[0]
 
-    // כשיוצאים ממקלט — שומרים את משך הזמן
     let newHistory = shelterHistory
     if (!active && shelter[memberId]?.active && shelter[memberId]?.since) {
       const mins = Math.max(0, Math.round((now - new Date(shelter[memberId].since)) / 60000))
@@ -272,7 +320,6 @@ export default function App() {
     }
     setShelter(updated)
     localStorage.setItem('familyapp_shelter', JSON.stringify(updated))
-    // שמירה מיידית לענן — מקלט הוא קריטי, לא debounce!
     syncToCloudImmediate({ shelter: updated, shelterHistory: newHistory })
   }
 
@@ -294,6 +341,7 @@ export default function App() {
       photos, savePhoto,
       statuses, setMemberStatus,
       locations, saveLocations,
+      locationHistory,
     }}>
       <BrowserRouter>
         <div style={{

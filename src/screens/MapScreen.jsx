@@ -35,7 +35,7 @@ function createPhotoIcon(people, photos, shelter) {
 }
 
 export default function MapScreen() {
-  const { currentUser, shelter, toggleShelter, photos, statuses, allMembers, locations: contextLocations, saveLocations: contextSaveLocations } = useUser()
+  const { currentUser, shelter, toggleShelter, photos, statuses, allMembers, locations: contextLocations, saveLocations: contextSaveLocations, locationHistory } = useUser()
 
   const isAdmin = currentUser?.id === 5
 
@@ -305,7 +305,7 @@ export default function MapScreen() {
         </div>
       )}
 
-      <FamilyList members={membersData} kids={kidsData} cityAlertData={cityAlertData} allTimeData={allTimeData} shelter={shelter} photos={photos} statuses={statuses} editingId={editingId} setEditingId={setEditingId} handleInlineLocationSelect={handleInlineLocationSelect} setShowEdit={setShowEdit} alertsUser={alertsUser} alertsFamily={alertsFamily} currentUserCity={currentUserCity} loading={loading} shelterTimeLabelUser={shelterTimeLabelUser} shelterTimeLabelFamily={shelterTimeLabelFamily} periodLabel={periodLabel} securityLevel={securityLevel} dataRangeLabel={dataRangeLabel} onScroll={handleFamilyScroll} onMemberClick={handleMemberClick} focusedMemberId={focusedMemberId} scrollRef={familyListRef} currentUserId={currentUser?.id} isAdmin={isAdmin} />
+      <FamilyList members={membersData} kids={kidsData} cityAlertData={cityAlertData} allTimeData={allTimeData} locationHistory={locationHistory} shelter={shelter} photos={photos} statuses={statuses} editingId={editingId} setEditingId={setEditingId} handleInlineLocationSelect={handleInlineLocationSelect} setShowEdit={setShowEdit} alertsUser={alertsUser} alertsFamily={alertsFamily} currentUserCity={currentUserCity} loading={loading} shelterTimeLabelUser={shelterTimeLabelUser} shelterTimeLabelFamily={shelterTimeLabelFamily} periodLabel={periodLabel} securityLevel={securityLevel} dataRangeLabel={dataRangeLabel} onScroll={handleFamilyScroll} onMemberClick={handleMemberClick} focusedMemberId={focusedMemberId} scrollRef={familyListRef} currentUserId={currentUser?.id} isAdmin={isAdmin} />
 
       {showEdit && isAdmin && (
         <EditLocationsModal

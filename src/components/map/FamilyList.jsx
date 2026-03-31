@@ -4,14 +4,23 @@ import { getStatus } from '../../data/statusConfig'
 import { normalizeCity } from '../../services/pikudHaoref'
 import InlineLocationPicker from './InlineLocationPicker'
 
-function Leaderboard({ members, allTimeData, photos }) {
-  // בונים דירוג לפי סה"כ אזעקות בעיר של כל בן משפחה
+function Leaderboard({ members, allTimeData, locationHistory, photos }) {
+  // בונים דירוג לפי סה"כ אזעקות בכל הערים שהיו בהן (נוכחית + קודמות)
   const ranked = members
     .filter(m => m.city)
     .map(m => {
-      const nc = normalizeCity(m.city)
-      const data = allTimeData[nc] || { alerts: 0 }
-      return { ...m, totalAlerts: data.alerts, shelterMinutes: data.shelterMinutes || 0 }
+      // אוספים אזעקות מהעיר הנוכחית + כל הערים הקודמות
+      const pastCities = (locationHistory[m.id] || [])
+      const allCities = [...new Set([m.city, ...pastCities])]
+      let totalAlerts = 0
+      let totalShelterMinutes = 0
+      for (const city of allCities) {
+        const nc = normalizeCity(city)
+        const data = allTimeData[nc] || { alerts: 0, shelterMinutes: 0 }
+        totalAlerts += data.alerts
+        totalShelterMinutes += (data.shelterMinutes || 0)
+      }
+      return { ...m, totalAlerts, shelterMinutes: totalShelterMinutes, cityCount: allCities.length }
     })
     .sort((a, b) => b.totalAlerts - a.totalAlerts)
 
@@ -39,7 +48,7 @@ function Leaderboard({ members, allTimeData, photos }) {
         <span style={{ fontSize: 22 }}>🏆</span>
         <div>
           <div style={{ fontSize: 15, fontWeight: 800, color: 'white' }}>טבלת דירוג אזעקות</div>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)' }}>לפי סה"כ אזעקות בעיר (כל הנתונים)</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)' }}>לפי סה"כ אזעקות בכל הערים (כל הנתונים)</div>
         </div>
       </div>
 
@@ -112,7 +121,7 @@ function Leaderboard({ members, allTimeData, photos }) {
                   {m.name}
                 </div>
                 <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                  📍 {m.city}
+                  📍 {m.city}{m.cityCount > 1 ? ` (+${m.cityCount - 1})` : ''}
                 </div>
               </div>
 
@@ -138,7 +147,7 @@ function Leaderboard({ members, allTimeData, photos }) {
   )
 }
 
-export default function FamilyList({ members, kids, cityAlertData, allTimeData, shelter, photos, statuses, editingId, setEditingId, handleInlineLocationSelect, setShowEdit, alertsUser, alertsFamily, currentUserCity, loading, shelterTimeLabelUser, shelterTimeLabelFamily, periodLabel, securityLevel, dataRangeLabel, onScroll, onMemberClick, focusedMemberId, scrollRef, currentUserId, isAdmin }) {
+export default function FamilyList({ members, kids, cityAlertData, allTimeData, locationHistory, shelter, photos, statuses, editingId, setEditingId, handleInlineLocationSelect, setShowEdit, alertsUser, alertsFamily, currentUserCity, loading, shelterTimeLabelUser, shelterTimeLabelFamily, periodLabel, securityLevel, dataRangeLabel, onScroll, onMemberClick, focusedMemberId, scrollRef, currentUserId, isAdmin }) {
   const [viewMode, setViewMode] = useState('user')
 
   const isFamily = viewMode === 'family'
@@ -299,7 +308,7 @@ export default function FamilyList({ members, kids, cityAlertData, allTimeData, 
 
       {/* 🏆 טבלת דירוג אזעקות */}
       {allTimeData && Object.keys(allTimeData).length > 0 && (
-        <Leaderboard members={members} allTimeData={allTimeData} photos={photos} />
+        <Leaderboard members={members} allTimeData={allTimeData} locationHistory={locationHistory || {}} photos={photos} />
       )}
 
       <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, marginBottom: 8 }}>לחץ על בן משפחה למיקוד במפה</div>
