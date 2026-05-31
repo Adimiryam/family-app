@@ -1,13 +1,13 @@
 {
-  "lastUpdate": "2026-05-31T09:20:33.572Z",
-  "totalAccumulated": 319,
+  "lastUpdate": "2026-05-31T11:14:48.777Z",
+  "totalAccumulated": 335,
   "dataRange": {
     "oldest": "2026-05-01T20:48:16.000Z",
-    "newest": "2026-05-31T09:09:59.000Z"
+    "newest": "2026-05-31T11:06:13.000Z"
   },
   "counts": {
-    "today": 56,
-    "twoDays": 72,
-    "all": 319
+    "today": 65,
+    "twoDays": 86,
+    "all": 335
   }
 }
