@@ -1,13 +1,13 @@
 {
-  "lastUpdate": "2026-10-09T17:01:10.111Z",
-  "totalAccumulated": 10,
+  "lastUpdate": "2026-10-09T21:37:36.986Z",
+  "totalAccumulated": 6,
   "dataRange": {
-    "oldest": "2026-09-09T21:24:49.000Z",
+    "oldest": "2026-09-17T11:33:37.000Z",
     "newest": "2026-09-29T18:35:20.000Z"
   },
   "counts": {
     "today": 0,
     "twoDays": 0,
-    "all": 10
+    "all": 6
   }
 }
