@@ -1,12 +1,12 @@
 {
-  "lastUpdate": "2026-11-23T22:12:50.883Z",
+  "lastUpdate": "2026-11-24T06:06:57.549Z",
   "totalAccumulated": 7,
   "dataRange": {
     "oldest": "2026-11-08T04:10:05.000Z",
     "newest": "2026-11-23T05:34:34.000Z"
   },
   "counts": {
-    "today": 1,
+    "today": 0,
     "twoDays": 1,
     "all": 7
   }
